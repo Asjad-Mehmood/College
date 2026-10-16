@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, MessageCircle, Phone, Printer } from "lucide-react";
+import { ArrowLeft, FileText, MessageCircle, Phone, Printer } from "lucide-react";
 import { Avatar, Card, CardHeader, Pill, Skeleton, StrikeBadge, buttonClass } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
 import { CASE_STATUS_LABELS, SEVERITY_LABELS, SEVERITY_LEVEL, VIOLATION_ACTION_LABELS } from "@/lib/labels";
@@ -196,9 +196,29 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
 
       <div className="no-print flex flex-col gap-5 lg:sticky lg:top-6">
         <Card className="p-5">
-          <a href={`/notice/${v.id}`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "md", "w-full")}>
-            <Printer className="size-4" aria-hidden /> Print parent notice
-          </a>
+          <p className="mb-3 text-sm font-semibold">Print a letter</p>
+          <div className="flex flex-col gap-2">
+            <a href={`/notice/${v.id}`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "md", "w-full justify-start")}>
+              <Printer className="size-4" aria-hidden /> Parent notice
+            </a>
+            {[
+              ["warning", "Warning letter"],
+              ["showcause", "Show-cause notice"],
+              ["undertaking", "Undertaking"],
+              ...(v.actionTaken === "SUSPENSION" ? [["suspension", "Suspension order"]] : []),
+            ].map(([kind, label]) => (
+              <a
+                key={kind}
+                href={`/violation-letter/${v.id}?kind=${kind}`}
+                target="_blank"
+                rel="noreferrer"
+                className={buttonClass("secondary", "md", "w-full justify-start")}
+              >
+                <FileText className="size-4" aria-hidden /> {label}
+              </a>
+            ))}
+          </div>
+          <p className="mt-3 text-[12px] text-muted">Letters open on the letterhead; you can edit the wording before printing.</p>
         </Card>
         {can.manageRecords(user.role) && (
           <Card className="p-5">
