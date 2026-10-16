@@ -2,23 +2,24 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { MessageCircle, Plus, Search, Trash2, TriangleAlert, Users, X } from "lucide-react";
+import { MessageCircle, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import type { ConsentStatus, MemberStatus } from "@/generated/prisma/enums";
-import { Avatar, Button, Card, CardHeader, Field, FormMessage, Input, Pill, Select, cx, fieldClass } from "@/components/ui";
+import { Avatar, Button, Card, CardHeader, Field, FormMessage, Input, Pill, cx, fieldClass } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import { CONSENT_LABELS } from "@/lib/labels";
-import { groupBySection } from "@/lib/sections";
 import {
   addAchievement,
   addMember,
-  addSection,
   checkForTeam,
+  searchStudents,
+  setManager,
   deleteAchievement,
   deleteTeam,
   removeMember,
   updateMember,
   type CheckResult,
   type FormState,
+  type StudentHit,
 } from "../../actions";
 
 export type MemberView = {
@@ -37,110 +38,99 @@ export type MemberView = {
   message: string;
 };
 
-export function AddPlayers({ teamId, sections }: { teamId: number; sections: string[] }) {
-  const [roll, setRoll] = useState("");
+export function AddPlayers({ teamId }: { teamId: number }) {
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState<StudentHit[]>([]);
   const [check, setCheck] = useState<CheckResult | null>(null);
   const [override, setOverride] = useState("");
   const [state, setState] = useState<FormState>(null);
-  const [secState, setSecState] = useState<FormState>(null);
   const [pending, start] = useTransition();
   const found = check?.ok ? check : null;
   const blocked = !!found && found.blocks.length > 0;
   const warned = !!found && found.warnings.length > 0;
+
+  function search(value: string) {
+    setQ(value);
+    setCheck(null);
+    setState(null);
+    if (value.trim().length < 2) return setHits([]);
+    start(async () => setHits(await searchStudents(value)));
+  }
+  function pick(rollNo: string) {
+    setOverride("");
+    setHits([]);
+    start(async () => setCheck(await checkForTeam(teamId, rollNo)));
+  }
+
   return (
     <Card>
-      <CardHeader title="Add players" />
-      <div className="grid gap-6 p-5 lg:grid-cols-2">
-        <div>
-          <p className="mb-2 text-[13px] font-medium text-ink-2">By roll number</p>
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setState(null);
-              setOverride("");
-              start(async () => setCheck(await checkForTeam(teamId, roll)));
-            }}
-          >
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
-              <input
-                value={roll}
-                onChange={(e) => {
-                  setRoll(e.target.value);
-                  setCheck(null);
-                }}
-                aria-label="Roll number"
-                placeholder="Roll number"
-                autoComplete="off"
-                className={fieldClass("pl-9 font-mono uppercase placeholder:font-sans placeholder:normal-case")}
-              />
-            </div>
-            <Button type="submit" disabled={pending || !roll.trim()}>
-              Check
-            </Button>
-          </form>
-          {check && !check.ok && <p className="mt-3 text-sm text-danger-ink">{check.message}</p>}
-          {found && (
-            <div className="mt-3 rounded-xl border border-line p-3">
-              <p className="text-sm font-medium">
-                {found.student.fullName} <span className="font-mono text-[12px] text-muted">{found.student.rollNo}</span> · {found.student.section}
-              </p>
-              {[...found.blocks, ...found.warnings].map((m) => (
-                <p key={m} className={cx("mt-2 flex items-start gap-1.5 text-[13px]", blocked ? "text-danger-ink" : "")}>
-                  <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {m}
-                </p>
-              ))}
-              {!blocked && (
-                <form
-                  className="mt-3 flex flex-col gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    start(async () => {
-                      const res = await addMember(teamId, found.student.rollNo, warned ? override : undefined);
-                      setState(res);
-                      if (res?.ok) {
-                        setCheck(null);
-                        setRoll("");
-                      }
-                    });
-                  }}
-                >
-                  {warned && <Input value={override} onChange={(e) => setOverride(e.target.value)} required maxLength={200} placeholder="Why may this student still join?" aria-label="Reason to allow" />}
-                  <Button type="submit" variant={warned ? "danger" : "primary"} disabled={pending}>
-                    <Plus className="size-4" aria-hidden /> {warned ? "Add anyway" : "Add to squad"}
-                  </Button>
-                </form>
-              )}
-            </div>
-          )}
-          <div className="mt-2">
-            <FormMessage state={state} />
-          </div>
+      <CardHeader title="Add players" description="Search the whole college by name or roll number." />
+      <div className="p-5">
+        <div className="relative max-w-xl">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
+          <input
+            value={q}
+            onChange={(e) => search(e.target.value)}
+            aria-label="Find a student"
+            placeholder="Type a name or roll number…"
+            autoComplete="off"
+            className={fieldClass("pl-9")}
+          />
         </div>
-        <div>
-          <p className="mb-2 text-[13px] font-medium text-ink-2">A whole section</p>
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              start(async () => setSecState(await addSection(teamId, String(fd.get("section")))));
-            }}
-          >
-            <Select name="section" aria-label="Section" defaultValue="">
-              <option value="">Section…</option>
-              {sections.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </Select>
-            <Button type="submit" disabled={pending} className="shrink-0">
-              <Users className="size-4" aria-hidden /> Add section
-            </Button>
-          </form>
-          <div className="mt-2">
-            <FormMessage state={secState} />
+        {hits.length > 0 && (
+          <ul className="mt-2 max-w-xl divide-y divide-line rounded-xl border border-line">
+            {hits.map((h) => (
+              <li key={h.rollNo}>
+                <button type="button" onClick={() => pick(h.rollNo)} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-surface-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{h.fullName}</span>
+                    <span className="block truncate text-[12px] text-muted">
+                      <span className="font-mono">{h.rollNo}</span> · {h.program} · {h.section}
+                    </span>
+                  </span>
+                  <Plus className="size-4 text-muted" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {q.trim().length >= 2 && hits.length === 0 && !check && !pending && <p className="mt-2 text-[13px] text-muted">No active student matches.</p>}
+        {check && !check.ok && <p className="mt-3 text-sm text-danger-ink">{check.message}</p>}
+        {found && (
+          <div className="mt-3 max-w-xl rounded-xl border border-line p-3">
+            <p className="text-sm font-medium">
+              {found.student.fullName} <span className="font-mono text-[12px] text-muted">{found.student.rollNo}</span> · {found.student.section}
+            </p>
+            {[...found.blocks, ...found.warnings].map((m) => (
+              <p key={m} className={cx("mt-2 flex items-start gap-1.5 text-[13px]", blocked ? "text-danger-ink" : "")}>
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {m}
+              </p>
+            ))}
+            {!blocked && (
+              <form
+                className="mt-3 flex flex-col gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  start(async () => {
+                    const res = await addMember(teamId, found.student.rollNo, warned ? override : undefined);
+                    setState(res);
+                    if (res?.ok) {
+                      setCheck(null);
+                      setQ("");
+                    }
+                  });
+                }}
+              >
+                {warned && <Input value={override} onChange={(e) => setOverride(e.target.value)} required maxLength={200} placeholder="Why may this student still play?" aria-label="Reason to allow" />}
+                <Button type="submit" variant={warned ? "danger" : "primary"} disabled={pending}>
+                  <Plus className="size-4" aria-hidden /> {warned ? "Add anyway" : "Add to team"}
+                </Button>
+              </form>
+            )}
           </div>
+        )}
+        <div className="mt-2">
+          <FormMessage state={state} />
         </div>
       </div>
     </Card>
@@ -172,18 +162,11 @@ export function SquadTable({ members, editable }: { members: MemberView[]; edita
       {visible.length === 0 ? (
         <p className="px-5 py-10 text-center text-sm text-muted">Nobody here yet.</p>
       ) : (
-        groupBySection(visible, (m) => m.section).map(([section, rows]) => (
-          <section key={section}>
-            <p className="border-y border-line bg-surface-2/50 px-5 py-1.5 text-[12px] font-semibold text-ink-2">
-              {section} · {rows.length}
-            </p>
-            <ul className="divide-y divide-line">
-              {rows.map((m) => (
-                <MemberRow key={m.id} m={m} editable={editable} />
-              ))}
-            </ul>
-          </section>
-        ))
+        <ul className="divide-y divide-line">
+          {visible.map((m) => (
+            <MemberRow key={m.id} m={m} editable={editable} />
+          ))}
+        </ul>
       )}
     </Card>
   );
@@ -208,7 +191,7 @@ function MemberRow({ m, editable }: { m: MemberView; editable: boolean }) {
               {m.role !== "Player" && <span className="ml-2 text-[12px] font-normal text-accent-ink">{m.role}</span>}
             </span>
             <span className="block truncate text-[12px] text-muted">
-              <span className="font-mono">{m.rollNo}</span>
+              <span className="font-mono">{m.rollNo}</span> · {m.section}
               {m.medicalNote && ` · ${m.medicalNote}`}
             </span>
           </span>
@@ -354,5 +337,28 @@ export function DeleteTeam({ id }: { id: number }) {
     <Button variant="ghost" className="text-danger-ink" onClick={() => setConfirm(true)}>
       <Trash2 className="size-4" aria-hidden /> Delete team
     </Button>
+  );
+}
+
+export function ManagerField({ teamId, manager, editable }: { teamId: number; manager: string | null; editable: boolean }) {
+  const [state, setState] = useState<FormState>(null);
+  const [pending, start] = useTransition();
+  if (!editable) return <p className="text-sm text-ink-2">{manager ? `Manager: ${manager}` : "No manager set"}</p>;
+  return (
+    <form
+      key={manager}
+      className="flex items-center gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        start(async () => setState(await setManager(teamId, String(fd.get("manager")))));
+      }}
+    >
+      <Input name="manager" defaultValue={manager ?? ""} maxLength={100} placeholder="Team manager / coach" aria-label="Team manager" className="h-9 w-56" />
+      <Button type="submit" size="sm" disabled={pending}>
+        Save
+      </Button>
+      {state?.ok && <span className="text-[12px] text-success-ink">Saved</span>}
+    </form>
   );
 }

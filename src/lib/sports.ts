@@ -11,10 +11,4 @@ export async function openSevereWarnings(rollNo: string) {
   return severe.map((v) => `Open severe violation: ${v.type.name} (${formatDate(fromDbDate(v.incidentDate))}, case #${v.id}).`);
 }
 
-export function currentSeason(date = new Date()) {
-  // Academic year starting in July.
-  const y = date.getUTCMonth() >= 6 ? date.getUTCFullYear() : date.getUTCFullYear() - 1;
-  return `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
-}
-
 export const ROLES = ["Captain", "Vice-captain", "Player"] as const;

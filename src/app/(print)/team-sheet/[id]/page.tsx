@@ -30,6 +30,8 @@ async function Sheet({ params }: { params: PageProps<"/team-sheet/[id]">["params
       where: { id },
       include: {
         sport: true,
+        house: true,
+        event: true,
         members: { where: { status: "SELECTED" }, include: { student: { select: { fullName: true, fatherName: true, section: true, parentPhone: true } } } },
       },
     }),
@@ -50,11 +52,11 @@ async function Sheet({ params }: { params: PageProps<"/team-sheet/[id]">["params
         <div className="mt-3 flex flex-wrap justify-between gap-2">
           <div>
             <p className="text-[15px] font-semibold">
-              {team.sport.name} · {team.category}
+              {team.sport.name} · {team.house.name}
             </p>
             <p>
-              Season {team.season}
-              {team.coach && ` · Coach: ${team.coach}`}
+              {team.event.name}
+              {team.manager && ` · Manager: ${team.manager}`}
             </p>
           </div>
           <p className="text-right">
@@ -91,7 +93,7 @@ async function Sheet({ params }: { params: PageProps<"/team-sheet/[id]">["params
           </tbody>
         </table>
         <div className="mt-14 flex justify-between text-[12px]">
-          {["Coach", "Discipline In-Charge", "Principal"].map((s) => (
+          {["Team manager", "Discipline In-Charge", "Principal"].map((s) => (
             <div key={s} className="text-center">
               <div className="mb-1 w-40 border-b border-black" />
               <p className="font-semibold">{s}</p>

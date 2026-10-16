@@ -40,25 +40,102 @@ export async function setSportActive(id: number, active: boolean) {
   refresh();
 }
 
-export async function createTeam(_: FormState, fd: FormData): Promise<FormState> {
+/* ---------- Events & houses ---------- */
+
+export async function createEvent(_: FormState, fd: FormData): Promise<FormState> {
   await admin();
-  const sportId = Number(fd.get("sportId"));
-  const season = clean(fd.get("season"), 20);
-  const category = clean(fd.get("category"), 40);
-  if (!sportId || !season || !category) return { ok: false, message: "Choose the sport and enter the season and category." };
+  const name = clean(fd.get("name"), 120);
+  const start = clean(fd.get("startDate"), 10);
+  const end = clean(fd.get("endDate"), 10) || start;
+  if (!name) return { ok: false, message: "Enter the event's name." };
+  if (!isValidYmd(start) || !isValidYmd(end)) return { ok: false, message: "Enter the start and end dates." };
+  if (end < start) return { ok: false, message: "The end date can't be before the start." };
+  const event = await prisma.sportsEvent.create({
+    data: { name, startDate: toDbDate(start), endDate: toDbDate(end), venue: clean(fd.get("venue"), 100) || null, notes: clean(fd.get("notes"), 300) || null },
+  });
+  redirect(`/sports/events/${event.id}`);
+}
+
+export async function deleteEvent(id: number) {
+  await admin();
+  await prisma.sportsEvent.delete({ where: { id } });
+  redirect("/sports");
+}
+
+export async function saveHouse(_: FormState, fd: FormData): Promise<FormState> {
+  await admin();
+  const id = Number(fd.get("id")) || null;
+  const name = clean(fd.get("name"), 60);
+  const color = clean(fd.get("color"), 9);
+  if (!name) return { ok: false, message: "Enter the house name." };
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) return { ok: false, message: "Pick a colour." };
+  const data = { name, color, inCharge: clean(fd.get("inCharge"), 100) || null };
   try {
-    const team = await prisma.team.create({ data: { sportId, season, category, coach: clean(fd.get("coach"), 100) || null } });
-    redirect(`/sports/teams/${team.id}`);
+    if (id) await prisma.house.update({ where: { id }, data });
+    else await prisma.house.create({ data });
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { ok: false, message: "That team already exists for this season." };
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { ok: false, message: `“${name}” already exists.` };
     throw e;
   }
+  refresh();
+  return { ok: true, message: id ? "House updated." : `Added ${name}.` };
+}
+
+export async function setHouseActive(id: number, active: boolean) {
+  await admin();
+  await prisma.house.update({ where: { id }, data: { active } });
+  refresh();
+}
+
+/** Adds a sport to an event: one (empty) team for each chosen house. */
+export async function addSportToEvent(eventId: number, sportId: number, houseIds: number[]): Promise<FormState> {
+  await admin();
+  if (!sportId) return { ok: false, message: "Choose a sport." };
+  if (houseIds.length === 0) return { ok: false, message: "Choose at least one house." };
+  const res = await prisma.team.createMany({ data: houseIds.map((houseId) => ({ eventId, sportId, houseId })), skipDuplicates: true });
+  refresh();
+  return res.count === 0 ? { ok: false, message: "That sport is already in the event for those houses." } : { ok: true, message: `Added with ${res.count} house ${res.count === 1 ? "team" : "teams"}.` };
+}
+
+export async function removeSportFromEvent(eventId: number, sportId: number) {
+  await admin();
+  await prisma.team.deleteMany({ where: { eventId, sportId } });
+  refresh();
+}
+
+export async function setManager(teamId: number, manager: string): Promise<FormState> {
+  await admin();
+  await prisma.team.update({ where: { id: teamId }, data: { manager: clean(manager, 100) || null } });
+  refresh();
+  return { ok: true };
+}
+
+export type StudentHit = { rollNo: string; fullName: string; section: string; program: string };
+
+/** Quick search across the whole college by name, father's name or roll number. */
+export async function searchStudents(q: string): Promise<StudentHit[]> {
+  await admin();
+  const term = q.trim().slice(0, 60);
+  if (term.length < 2) return [];
+  return prisma.student.findMany({
+    where: {
+      status: "ACTIVE",
+      OR: [
+        { rollNo: { contains: term, mode: "insensitive" } },
+        { fullName: { contains: term, mode: "insensitive" } },
+        { fatherName: { contains: term, mode: "insensitive" } },
+      ],
+    },
+    select: { rollNo: true, fullName: true, section: true, program: true },
+    orderBy: { fullName: "asc" },
+    take: 8,
+  });
 }
 
 export async function deleteTeam(id: number) {
   await admin();
-  await prisma.team.delete({ where: { id } });
-  redirect("/sports");
+  const team = await prisma.team.delete({ where: { id } });
+  redirect(`/sports/events/${team.eventId}`);
 }
 
 /* ---------- Squad ---------- */
@@ -88,27 +165,6 @@ export async function addMember(teamId: number, rollNo: string, overrideNote?: s
   await prisma.teamMember.create({ data: { teamId, rollNo: check.student.rollNo, addedById: user.id, overrideNote: overrideNote?.trim().slice(0, 200) || null } });
   refresh();
   return { ok: true, message: `Added ${check.student.fullName}.` };
-}
-
-export async function addSection(teamId: number, section: string): Promise<FormState> {
-  const user = await admin();
-  if (!section) return { ok: false, message: "Choose a section." };
-  const students = await prisma.student.findMany({ where: { section, status: "ACTIVE" }, orderBy: { rollNo: "asc" } });
-  if (students.length === 0) return { ok: false, message: "No active students in that section." };
-  const existing = new Set((await prisma.teamMember.findMany({ where: { teamId }, select: { rollNo: true } })).map((m) => m.rollNo));
-  let added = 0;
-  const skipped: string[] = [];
-  for (const s of students) {
-    if (existing.has(s.rollNo)) continue;
-    if ((await openSevereWarnings(s.rollNo)).length) {
-      skipped.push(s.fullName);
-      continue;
-    }
-    await prisma.teamMember.create({ data: { teamId, rollNo: s.rollNo, addedById: user.id } });
-    added += 1;
-  }
-  refresh();
-  return { ok: true, message: `Added ${added}.${skipped.length ? ` Skipped (open severe violation): ${skipped.join(", ")}.` : ""}` };
 }
 
 export async function updateMember(

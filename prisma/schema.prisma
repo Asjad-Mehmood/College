@@ -394,22 +394,55 @@ model Sport {
   @@map("sports")
 }
 
-model Team {
+// A college sports event, e.g. "Annual Sports Week 2026".
+model SportsEvent {
   id        Int      @id @default(autoincrement())
-  sportId   Int      @map("sport_id")
-  // e.g. "2026-27"
-  season    String   @db.VarChar(20)
-  // e.g. "Senior Boys", "Girls", "Junior"
-  category  String   @db.VarChar(40)
-  coach     String?  @db.VarChar(100)
+  name      String   @db.VarChar(120)
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  venue     String?  @db.VarChar(100)
+  notes     String?  @db.VarChar(300)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  teams Team[]
+
+  @@index([startDate])
+  @@map("sports_events")
+}
+
+// A college house (Red House, Jinnah House…). Students are picked into a
+// house's team per sport; there is no fixed house membership.
+model House {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(60)
+  // Hex colour such as #d03b3b, used for the house badge.
+  color     String   @default("#2a78d6") @db.VarChar(9)
+  inCharge  String?  @map("in_charge") @db.VarChar(100)
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
 
+  teams Team[]
+
+  @@map("houses")
+}
+
+// One house's team in one sport of one event.
+model Team {
+  id        Int      @id @default(autoincrement())
+  eventId   Int      @map("event_id")
+  sportId   Int      @map("sport_id")
+  houseId   Int      @map("house_id")
+  // Team manager / coach for this house in this sport.
+  manager   String?  @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event        SportsEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   sport        Sport         @relation(fields: [sportId], references: [id])
+  house        House         @relation(fields: [houseId], references: [id])
   members      TeamMember[]
   achievements Achievement[]
 
-  @@unique([sportId, season, category])
+  @@unique([eventId, sportId, houseId])
   @@map("teams")
 }
 

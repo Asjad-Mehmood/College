@@ -60,7 +60,7 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
     title: "Sports",
     items: [
       { href: "/sports/trials", label: "Trials", short: "Trials", icon: ShieldHalf, roles: ADMIN_VIEW },
-      { href: "/sports", label: "Teams", short: "Sports", icon: Trophy, roles: ADMIN_VIEW },
+      { href: "/sports", label: "Events & teams", short: "Sports", icon: Trophy, roles: ADMIN_VIEW },
     ],
   },
   {

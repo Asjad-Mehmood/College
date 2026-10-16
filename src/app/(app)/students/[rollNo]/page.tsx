@@ -64,7 +64,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
   const student = await prisma.student.findUnique({
     where: { rollNo },
     include: {
-      teams: { include: { team: { include: { sport: true } } } },
+      teams: { include: { team: { include: { sport: true, house: true, event: true } } } },
       achievements: { orderBy: { achievedOn: "desc" } },
       trips: {
         orderBy: { trip: { departDate: "desc" } },
@@ -354,8 +354,8 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
               <li key={`t${m.id}`}>
                 <Link href={`/sports/teams/${m.team.id}`} className="flex flex-wrap items-center gap-3 px-5 py-3 hover:bg-surface-2/50">
                   <span className="min-w-0 flex-1 text-sm font-medium">
-                    {m.team.sport.name} · {m.team.category}
-                    <span className="ml-2 text-[12px] font-normal text-muted">{m.team.season}</span>
+                    {m.team.sport.name} · {m.team.house.name}
+                    <span className="ml-2 text-[12px] font-normal text-muted">{m.team.event.name}</span>
                   </span>
                   {m.role !== "Player" && <Pill tone="accent">{m.role}</Pill>}
                   <Pill tone={m.status === "SELECTED" ? "good" : "neutral"}>{m.status === "SELECTED" ? "In squad" : m.status === "WAITLIST" ? "Waitlist" : "Dropped"}</Pill>

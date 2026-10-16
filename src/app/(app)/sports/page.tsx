@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Trophy, Users } from "lucide-react";
+import { CalendarDays, MapPin, Trophy } from "lucide-react";
 import { Card, CardHeader, EmptyState, PageHeader, Pill, Skeleton } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { currentSeason } from "@/lib/sports";
-import { NewTeamForm, SportsManager } from "./sports-forms";
+import { getSettings } from "@/lib/settings";
+import { formatDate, fromDbDate, localParts } from "@/lib/time";
+import { HousesManager, NewEventForm, SportsManager } from "./sports-forms";
 
 export const metadata: Metadata = { title: "Sports" };
 
 export default function SportsPage() {
   return (
     <div>
-      <PageHeader title="Sports" description="Teams, squads and trials for every sport." />
+      <PageHeader title="Sports events" description="College sports events, their sports and house teams." />
       <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
         <Content />
       </Suspense>
@@ -24,60 +25,78 @@ export default function SportsPage() {
 async function Content() {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
   const admin = can.administer(user.role);
-  const sports = await prisma.sport.findMany({
-    orderBy: [{ active: "desc" }, { name: "asc" }],
-    include: { teams: { orderBy: [{ season: "desc" }, { category: "asc" }], include: { _count: { select: { members: { where: { status: "SELECTED" } } } } } } },
-  });
-  const withTeams = sports.filter((s) => s.teams.length > 0);
+  const settings = await getSettings();
+  const today = localParts(new Date(), settings.timezone).date;
+  const [events, sports, houses] = await Promise.all([
+    prisma.sportsEvent.findMany({
+      orderBy: { startDate: "desc" },
+      include: { teams: { select: { sportId: true, _count: { select: { members: { where: { status: "SELECTED" } } } } } } },
+    }),
+    prisma.sport.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }], include: { _count: { select: { teams: true } } } }),
+    prisma.house.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }] }),
+  ]);
 
   return (
     <div className="flex flex-col gap-5">
       {admin && (
         <Card>
-          <CardHeader title="New team" description="One team per sport, season and category." />
+          <CardHeader title="New sports event" description="Then add sports to it (Badminton, Cricket…) and pick each house's players." />
           <div className="p-5">
-            <NewTeamForm sports={sports.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name }))} season={currentSeason()} />
+            <NewEventForm today={today} />
           </div>
         </Card>
       )}
-      {withTeams.length === 0 ? (
+      {events.length === 0 ? (
         <Card>
-          <EmptyState icon={<Trophy className="size-5" />} title="No teams yet">
-            Create a team above, then add players to its squad.
+          <EmptyState icon={<Trophy className="size-5" />} title="No sports events yet">
+            Create your first event above.
           </EmptyState>
         </Card>
       ) : (
-        withTeams.map((s) => (
-          <section key={s.id}>
-            <h2 className="mb-3 text-[13px] font-semibold tracking-wide text-muted uppercase">
-              {s.name}
-              {!s.active && " · inactive"}
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {s.teams.map((t) => (
-                <Link key={t.id} href={`/sports/teams/${t.id}`} className="group">
-                  <Card className="p-4 transition-colors group-hover:border-line-strong">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold group-hover:underline">{t.category}</p>
-                      <Pill>{t.season}</Pill>
-                    </div>
-                    <p className="mt-1 text-[13px] text-ink-2">{t.coach ? `Coach ${t.coach}` : "No coach set"}</p>
-                    <p className="mt-3 flex items-center gap-1.5 text-sm">
-                      <Users className="size-4 text-muted" aria-hidden />
-                      <span className="font-semibold tabular">{t._count.members}</span> in squad
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {events.map((e) => {
+            const start = fromDbDate(e.startDate);
+            const end = fromDbDate(e.endDate);
+            const live = start <= today && today <= end;
+            const sportsCount = new Set(e.teams.map((t) => t.sportId)).size;
+            const players = e.teams.reduce((n, t) => n + t._count.members, 0);
+            return (
+              <Link key={e.id} href={`/sports/events/${e.id}`} className="group">
+                <Card className="h-full p-5 transition-colors group-hover:border-line-strong">
+                  <div className="flex items-center gap-2">
+                    {live ? <Pill tone="accent">Happening now</Pill> : end < today ? <Pill>Finished</Pill> : <Pill tone="warning">Upcoming</Pill>}
+                  </div>
+                  <h2 className="mt-2 text-lg font-semibold tracking-tight group-hover:underline">{e.name}</h2>
+                  <p className="mt-1 flex items-center gap-1.5 text-[13px] text-ink-2">
+                    <CalendarDays className="size-3.5 text-muted" aria-hidden />
+                    {start === end ? formatDate(start) : `${formatDate(start)} – ${formatDate(end)}`}
+                  </p>
+                  {e.venue && (
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-ink-2">
+                      <MapPin className="size-3.5 text-muted" aria-hidden /> {e.venue}
                     </p>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ))
+                  )}
+                  <p className="mt-3 text-[13px] text-ink-2">
+                    <span className="font-semibold text-ink tabular">{sportsCount}</span> sports ·{" "}
+                    <span className="font-semibold text-ink tabular">{players}</span> players
+                  </p>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
       )}
       {admin && (
-        <Card>
-          <CardHeader title="Sports" description="The list offered when creating teams and trials." />
-          <SportsManager sports={sports.map((s) => ({ id: s.id, name: s.name, coach: s.coach, active: s.active, teams: s.teams.length }))} />
-        </Card>
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <Card>
+            <CardHeader title="Houses" description="Teams are made per house in each sport." />
+            <HousesManager houses={houses.map((h) => ({ id: h.id, name: h.name, color: h.color, inCharge: h.inCharge, active: h.active }))} />
+          </Card>
+          <Card>
+            <CardHeader title="Sports" description="Add any sport; it can then be used in every event." />
+            <SportsManager sports={sports.map((s) => ({ id: s.id, name: s.name, coach: s.coach, active: s.active, teams: s._count.teams }))} />
+          </Card>
+        </div>
       )}
     </div>
   );
