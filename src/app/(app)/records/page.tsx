@@ -21,12 +21,15 @@ import {
   PageHeader,
   Select,
   Skeleton,
+  StrikeBadge,
   buttonClass,
   cx,
 } from "@/components/ui";
 import { ViewTabs, pickView } from "@/components/view-tabs";
 import { can, requireUser } from "@/lib/auth";
+import { REASON_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
+import { strikeLevel } from "@/lib/strikes";
 import {
   PAGE_SIZE,
   RANGES,
@@ -39,7 +42,7 @@ import {
   type RecordFilters,
 } from "@/lib/records";
 import { getSettings, type Settings } from "@/lib/settings";
-import { formatDate, formatMonth, fromDbDate, isValidMonth, isValidYmd, localParts, monthStart, nextMonthStart, toDbDate } from "@/lib/time";
+import { addDays, formatDate, formatMonth, fromDbDate, isValidMonth, isValidYmd, localParts, monthStart, nextMonthStart, toDbDate } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Late records" };
 
@@ -86,14 +89,24 @@ async function MonthView({ params }: { params: Params }) {
   const monthParam = typeof params.month === "string" ? params.month : undefined;
   const month = isValidMonth(monthParam) && monthParam <= thisMonth ? monthParam : thisMonth;
 
-  const [counts, earliest, students] = await Promise.all([
+  const monthWhere = { lateDate: { gte: toDbDate(monthStart(`${month}-01`)), lt: toDbDate(nextMonthStart(`${month}-01`)) } };
+  const [counts, earliest, students, agg, unpaid, reasons] = await Promise.all([
     lateCountsForMonth(month),
     prisma.lateRecord.findFirst({ orderBy: { lateDate: "asc" }, select: { lateDate: true } }),
-    prisma.lateRecord.groupBy({
-      by: ["rollNo"],
-      where: { lateDate: { gte: toDbDate(monthStart(`${month}-01`)), lt: toDbDate(nextMonthStart(`${month}-01`)) } },
-    }),
+    prisma.lateRecord.groupBy({ by: ["rollNo"], where: monthWhere, _count: { _all: true } }),
+    prisma.lateRecord.aggregate({ where: monthWhere, _avg: { minutesLate: true }, _sum: { fineAmount: true } }),
+    prisma.lateRecord.aggregate({ where: { ...monthWhere, finePaid: false, fineAmount: { gt: 0 } }, _sum: { fineAmount: true } }),
+    prisma.lateRecord.groupBy({ by: ["reason"], where: monthWhere, _count: { _all: true } }),
   ]);
+  const repeaters = students
+    .filter((x) => x._count._all >= settings.habitualThreshold)
+    .sort((a, b) => b._count._all - a._count._all);
+  const topRolls = repeaters.slice(0, 8);
+  const topStudents = topRolls.length
+    ? await prisma.student.findMany({ where: { rollNo: { in: topRolls.map((t) => t.rollNo) } }, select: { rollNo: true, fullName: true, section: true } })
+    : [];
+  const nameOf = new Map(topStudents.map((t) => [t.rollNo, t]));
+  const reasonTotal = reasons.reduce((a, r) => a + r._count._all, 0);
 
   // Selected day: the one asked for, else today (this month) or the month's last day with records.
   const dateParam = typeof params.date === "string" ? params.date : undefined;
@@ -155,6 +168,12 @@ async function MonthView({ params }: { params: Params }) {
                 <h2 className="text-[15px] font-semibold">{formatDate(date, { weekday: true })}</h2>
                 <p className="text-[13px] text-muted">
                   {rows.length} late {rows.length === 1 ? "arrival" : "arrivals"}
+                  {rows.length > 0 &&
+                    ` · ${[...rows.reduce((m, r) => m.set(r.section, (m.get(r.section) ?? 0) + 1), new Map<string, number>())]
+                      .sort((a, b) => b[1] - a[1])
+                      .slice(0, 6)
+                      .map(([sec, n]) => `${sec} ${n}`)
+                      .join(" · ")}`}
                 </p>
               </div>
               {rows.length > 0 && (
@@ -183,6 +202,90 @@ async function MonthView({ params }: { params: Params }) {
           </EmptyState>
         )}
       </Card>
+      <div className="no-print grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {[
+          { label: "Late arrivals", value: monthTotal.toLocaleString() },
+          { label: "Students late", value: students.length.toLocaleString() },
+          { label: `Habitual (${settings.habitualThreshold}+)`, value: repeaters.length.toLocaleString(), href: `/records?view=search&range=custom&from=${month}-01&to=${month === thisMonth ? today : addDays(nextMonthStart(`${month}-01`), -1)}&habitual=1` },
+          { label: "Avg. minutes late", value: agg._avg.minutesLate ? Math.round(agg._avg.minutesLate).toString() : "—" },
+          { label: "Unpaid fines", value: `Rs. ${Number(unpaid._sum.fineAmount ?? 0).toLocaleString()}`, sub: `of Rs. ${Number(agg._sum.fineAmount ?? 0).toLocaleString()} fined` },
+        ].map((x) => {
+          const body = (
+            <>
+              <p className="text-[12px] text-muted">{x.label}</p>
+              <p className="mt-0.5 text-xl font-semibold tabular">{x.value}</p>
+              {x.sub && <p className="text-[12px] text-muted">{x.sub}</p>}
+            </>
+          );
+          return x.href ? (
+            <Link key={x.label} href={x.href} className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card hover:border-line-strong">
+              {body}
+            </Link>
+          ) : (
+            <Card key={x.label} className="px-4 py-3">
+              {body}
+            </Card>
+          );
+        })}
+      </div>
+
+      {(topRolls.length > 0 || reasons.length > 0) && (
+        <div className="no-print grid gap-4 lg:grid-cols-2">
+          <Card className="overflow-hidden">
+            <div className="border-b border-line px-5 py-3">
+              <h2 className="text-[15px] font-semibold">Most late this month</h2>
+              <p className="text-[13px] text-muted">Students with {settings.habitualThreshold} or more late arrivals</p>
+            </div>
+            {topRolls.length === 0 ? (
+              <p className="px-5 py-6 text-[13px] text-muted">No habitual late-comers this month.</p>
+            ) : (
+              <ul className="divide-y divide-line">
+                {topRolls.map((t) => {
+                  const st = nameOf.get(t.rollNo);
+                  return (
+                    <li key={t.rollNo}>
+                      <Link href={`/students/${encodeURIComponent(t.rollNo)}`} className="flex items-center gap-3 px-5 py-2.5 hover:bg-surface-2/60">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{st?.fullName ?? t.rollNo}</span>
+                          <span className="block text-[12px] text-muted">
+                            <span className="font-mono">{t.rollNo}</span> · {st?.section}
+                          </span>
+                        </span>
+                        <StrikeBadge level={strikeLevel(t._count._all, settings)} label={`${t._count._all} late`} />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+          <Card className="overflow-hidden">
+            <div className="border-b border-line px-5 py-3">
+              <h2 className="text-[15px] font-semibold">Reasons given</h2>
+              <p className="text-[13px] text-muted">{formatMonth(`${month}-01`)}</p>
+            </div>
+            <ul className="flex flex-col gap-3 px-5 py-4">
+              {[...reasons].sort((a, b) => b._count._all - a._count._all).map((r) => {
+                const pct = reasonTotal ? Math.round((r._count._all / reasonTotal) * 100) : 0;
+                return (
+                  <li key={r.reason}>
+                    <div className="flex justify-between text-[13px]">
+                      <span>{REASON_LABELS[r.reason]}</span>
+                      <span className="text-muted tabular">
+                        {r._count._all} · {pct}%
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                      <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -369,6 +472,19 @@ function Filters({
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
+          {RANGES.filter((r) => r.value !== "custom").map((r) => (
+            <Link
+              key={r.value}
+              href={`/records?view=search&${filtersToQuery({ ...filters, range: r.value, page: 1 })}`}
+              className={cx(
+                "rounded-full border px-3 py-1.5 text-[13px] font-medium",
+                filters.range === r.value ? "border-accent bg-accent text-on-accent" : "border-line text-ink-2 hover:bg-surface-2",
+              )}
+            >
+              {r.label}
+            </Link>
+          ))}
+          <span className="mx-1 h-5 w-px bg-line" aria-hidden />
           {quick.map((q) => (
             <label
               key={q.name}
