@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { MessageCircle, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import type { ConsentStatus, MemberStatus } from "@/generated/prisma/enums";
 import { Avatar, Button, Card, CardHeader, Field, FormMessage, Input, Pill, cx, fieldClass } from "@/components/ui";
@@ -49,12 +49,18 @@ export function AddPlayers({ teamId }: { teamId: number }) {
   const blocked = !!found && found.blocks.length > 0;
   const warned = !!found && found.warnings.length > 0;
 
+  const latest = useRef(0);
   function search(value: string) {
     setQ(value);
     setCheck(null);
     setState(null);
+    const ticket = ++latest.current;
     if (value.trim().length < 2) return setHits([]);
-    start(async () => setHits(await searchStudents(value)));
+    start(async () => {
+      const res = await searchStudents(value);
+      // Ignore answers to older keystrokes.
+      if (ticket === latest.current) setHits(res);
+    });
   }
   function pick(rollNo: string) {
     setOverride("");

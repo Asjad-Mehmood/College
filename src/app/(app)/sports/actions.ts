@@ -201,7 +201,8 @@ export async function addCandidates(trialId: number, input: { rollNo?: string; s
   let students: { rollNo: string }[] = [];
   if (input.section) students = await prisma.student.findMany({ where: { section: input.section, status: "ACTIVE" }, select: { rollNo: true } });
   else if (input.rollNo?.trim()) {
-    const s = await prisma.student.findFirst({ where: { rollNo: { equals: input.rollNo.trim().replace(/\s+/g, ""), mode: "insensitive" }, status: "ACTIVE" } });
+    const raw = input.rollNo.trim().replace(/\s+/g, "");
+    const s = await prisma.student.findFirst({ where: { rollNo: { equals: (await resolveRoll(raw)) ?? raw, mode: "insensitive" }, status: "ACTIVE" } });
     if (!s) return { ok: false, message: "No active student with that roll number." };
     students = [s];
   } else return { ok: false, message: "Enter a roll number or choose a section." };
@@ -252,7 +253,8 @@ export async function addAchievement(_: FormState, fd: FormData): Promise<FormSt
   const position = clean(fd.get("position"), 60);
   const date = clean(fd.get("achievedOn"), 10) || localParts(new Date(), settings.timezone).date;
   const teamId = Number(fd.get("teamId")) || null;
-  const rollNo = clean(fd.get("rollNo"), 20).toUpperCase().replace(/\s+/g, "") || null;
+  const rawRoll = clean(fd.get("rollNo"), 20).toUpperCase().replace(/\s+/g, "");
+  const rollNo = rawRoll ? ((await resolveRoll(rawRoll)) ?? rawRoll) : null;
   if (!event || !position) return { ok: false, message: "Enter the event and the position (e.g. Winner, Runner-up, Gold)." };
   if (!isValidYmd(date)) return { ok: false, message: "Enter a valid date." };
   if (!teamId && !rollNo) return { ok: false, message: "Choose a team or enter a student's roll number." };
