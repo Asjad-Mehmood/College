@@ -21,8 +21,8 @@ export function SetupForm() {
         <Field label="Your full name">
           <Input name="fullName" required autoComplete="name" />
         </Field>
-        <Field label="Username">
-          <Input name="username" required autoCapitalize="none" autoComplete="username" />
+        <Field label="Email">
+          <Input name="email" type="email" required autoCapitalize="none" autoComplete="email" maxLength={120} />
         </Field>
         <Field label="Password" hint="At least 8 characters.">
           <Input name="password" type="password" required minLength={8} autoComplete="new-password" />

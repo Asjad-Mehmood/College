@@ -20,7 +20,7 @@ Built with Next.js 16, Prisma 7 and Neon Postgres, and deployed on Vercel.
 | **Sports** (`/sports`, `/sports/events/[id]`, `/sports/teams/[id]`, `/sports/trials`) | In-Charge manages; Principal views | Create a **sports event** (e.g. Annual Sports Week), add **sports** to it (Badminton, Cricket…), then open a sport and pick its **players from the whole college** by searching name or roll number. Per team: manager, captain/vice-captain, jersey number, position, status, medical note, WhatsApp notice (no parent consent needed); students with an open severe violation need a written reason. The sport list is managed on the same page. **Trials** (by sport): mark candidates selected / waitlist / not selected and move them into the event's team. Achievements show on student profiles; printable team sheet. |
 | **Students** (`/students`, `/students/[roll]`) | In-Charge, Principal | **Sections are created first** with the **Add section** button (a dialog: name, 1st/2nd year and **morning/evening shift** — students take their section's shift, so the gate measures lateness against the right start time); adding a student then picks the section from a dropdown. The **Programs** button opens a dialog to add or remove programs. The **By section** overview shows summary figures and groups sections by year with counts (CD1, CD2 … CD 54, in natural order); the overview shows totals per year and average class size, can be filtered by year, and each section card shows its size and program mix. A section page has previous/next section links, program and status filters with counts, search within the section, add student, a printable **class list**, Excel export, and rename / change year. Programs (Medical, ICS, DIT, I.Com, FA by default) are a managed list too, chosen from a dropdown. Search the list live by name, father's name, phone or any part of the roll number (typing `114` finds 24-PE-114; the gate and other lookups also accept just the last digits). Full searchable list and discipline profile: late arrivals and violations, unpaid fines from both, call/WhatsApp buttons and a printable warning letter. |
 | **General audit** (`/audit`) | In-Charge, Principal | Nothing is listed until you search: roll number (even the last digits), name, father's name or phone. An exact roll number opens the audit straight away; otherwise click a match. The audit is a large popup with the student's profile and contact buttons on the side and tabs for **Overview** (alerts, key figures, 12-month late trend, recent activity), **Late arrivals**, **Violations** (full case details), **Fines** (paid vs outstanding from lates and violations), **Trips** (consent, fee, roll call), **Sports** (teams and achievements) and a full **Timeline**. |
-| **Settings** (`/settings`) | In-Charge | **Morning and evening shifts**, each with its own summer and winter start time; one summer/winter switch for both, grace period, escalation thresholds, default fine, violation types (name, severity, default fine, active), Excel/CSV student import and staff accounts. |
+| **Settings** (`/settings`) | In-Charge | **Morning and evening shifts**, each with its own summer and winter start time; one summer/winter switch for both, grace period, escalation thresholds, default fine, violation types (name, severity, default fine, active), Excel/CSV student import and staff accounts. Everyone **signs in with their email**; accounts made before email sign-in keep working with their old username and show “No email yet” in Settings — use **Set email** to switch them over. |
 
 The **escalation engine** colours every count by level, and each level also gets an icon and a label:
 below the habitual threshold → verbal warning; the habitual threshold (default 3) → written warning;
@@ -36,7 +36,7 @@ Notes:
 
 1. Set `DB_URL` to your Neon connection string, in Vercel and in `.env.local` locally (see `.env.example`).
 2. Deploy. `vercel-build` runs `prisma migrate deploy` before building, which creates the tables.
-3. Open the site and follow **Set up the portal** to create the Discipline In-Charge account. This only works
+3. Open the site and follow **Set up the portal** to create the Discipline In-Charge account (signs in with email). This only works
    while no accounts exist.
 4. In **Settings**, import the student list. Use the
    [template](public/student-import-template.csv) as a guide. Headers are matched loosely, so `Roll No`,
@@ -51,7 +51,7 @@ npm run db:seed         # optional demo data — local databases only
 npm run dev
 ```
 
-The seed creates `admin`, `gate` and `principal` accounts, all with the password `password123`, plus about 120
+The seed creates `admin@college.edu.pk`, `gate@college.edu.pk` and `principal@college.edu.pk` accounts, all with the password `password123`, plus about 120
 students and six weeks of history. It refuses to run against a non-local database.
 
 `DB_URL` may also point to a local Postgres (`localhost`/`127.0.0.1`). The app then connects over TCP

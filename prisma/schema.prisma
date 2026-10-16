@@ -171,7 +171,9 @@ model LateRecord {
 model User {
   id           Int      @id @default(autoincrement())
   fullName     String   @map("full_name") @db.VarChar(100)
-  username     String   @unique @db.VarChar(50)
+  // Sign-in email. The column keeps its old name; accounts made before
+  // email sign-in may still hold a plain username until an email is set.
+  email        String   @unique @map("username") @db.VarChar(120)
   passwordHash String   @map("password_hash") @db.VarChar(255)
   role         Role
   active       Boolean  @default(true)

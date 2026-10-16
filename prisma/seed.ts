@@ -64,15 +64,15 @@ async function main() {
   });
 
   const users = [
-    { username: "admin", fullName: "Prof. Tahir Mehmood", role: "ADMIN" as const },
-    { username: "gate", fullName: "Rafiq Ahmed", role: "GATE" as const },
-    { username: "principal", fullName: "Dr. Saima Farooq", role: "PRINCIPAL" as const },
+    { email: "admin@college.edu.pk", fullName: "Prof. Tahir Mehmood", role: "ADMIN" as const },
+    { email: "gate@college.edu.pk", fullName: "Rafiq Ahmed", role: "GATE" as const },
+    { email: "principal@college.edu.pk", fullName: "Dr. Saima Farooq", role: "PRINCIPAL" as const },
   ];
   const created = [];
   for (const u of users) {
     created.push(
       await prisma.user.upsert({
-        where: { username: u.username },
+        where: { email: u.email },
         update: {},
         create: { ...u, passwordHash: hash("password123") },
       }),

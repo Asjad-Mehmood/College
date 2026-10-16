@@ -5,6 +5,7 @@ import type { Role, Severity } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
+import { isEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { importStudents, type ImportReport } from "@/lib/student-import";
 
@@ -91,23 +92,33 @@ const ROLES: Role[] = ["ADMIN", "GATE", "PRINCIPAL"];
 export async function createUser(_: SettingsState, formData: FormData): Promise<SettingsState> {
   await requireUser(["ADMIN"]);
   const fullName = String(formData.get("fullName") ?? "").trim();
-  const username = String(formData.get("username") ?? "").trim().toLowerCase();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const role = String(formData.get("role") ?? "") as Role;
 
-  if (!fullName || !username || !ROLES.includes(role)) return { ok: false, message: "Fill in every field." };
-  if (!/^[a-z0-9._-]{3,50}$/.test(username)) {
-    return { ok: false, message: "Username: 3–50 letters, numbers, dots, dashes or underscores." };
-  }
+  if (!fullName || !email || !ROLES.includes(role)) return { ok: false, message: "Fill in every field." };
+  if (!isEmail(email)) return { ok: false, message: "Enter a valid email address." };
   if (password.length < 8) return { ok: false, message: "Password must be at least 8 characters." };
-  if (await prisma.user.findUnique({ where: { username } })) {
-    return { ok: false, message: `The username “${username}” is taken.` };
+  if (await prisma.user.findUnique({ where: { email } })) {
+    return { ok: false, message: `${email} already has an account.` };
   }
   await prisma.user.create({
-    data: { fullName: fullName.slice(0, 100), username, role, passwordHash: await hashPassword(password) },
+    data: { fullName: fullName.slice(0, 100), email, role, passwordHash: await hashPassword(password) },
   });
   refresh();
   return { ok: true, message: `Account created for ${fullName}.` };
+}
+
+/** Sets the email an account signs in with. */
+export async function setUserEmail(userId: number, raw: string): Promise<SettingsState> {
+  await requireUser(["ADMIN"]);
+  const email = raw.trim().toLowerCase();
+  if (!isEmail(email)) return { ok: false, message: "Enter a valid email address." };
+  const taken = await prisma.user.findUnique({ where: { email } });
+  if (taken && taken.id !== userId) return { ok: false, message: `${email} already has an account.` };
+  await prisma.user.update({ where: { id: userId }, data: { email } });
+  refresh();
+  return { ok: true, message: "Email updated." };
 }
 
 export async function resetPassword(userId: number, password: string): Promise<SettingsState> {

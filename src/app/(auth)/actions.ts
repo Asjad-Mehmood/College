@@ -3,19 +3,21 @@
 import { redirect } from "next/navigation";
 import { createSession, destroySession, homeFor } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { isEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 export type FormState = { ok?: boolean; message?: string } | null;
 
 export async function login(_: FormState, formData: FormData): Promise<FormState> {
-  const username = String(formData.get("username") ?? "").trim().toLowerCase();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  if (!username || !password) {
-    return { ok: false, message: "Enter your username and password." };
+  if (!email || !password) {
+    return { ok: false, message: "Enter your email and password." };
   }
-  const user = await prisma.user.findUnique({ where: { username } });
+  // Accounts created before email sign-in can still use their old username.
+  const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.active || !(await verifyPassword(password, user.passwordHash))) {
-    return { ok: false, message: "Incorrect username or password." };
+    return { ok: false, message: "Incorrect email or password." };
   }
   await createSession(user.id);
   redirect(homeFor(user.role));
@@ -29,15 +31,15 @@ export async function logout() {
 /** First-run only: creates the Discipline In-Charge account. */
 export async function setupAdmin(_: FormState, formData: FormData): Promise<FormState> {
   const fullName = String(formData.get("fullName") ?? "").trim();
-  const username = String(formData.get("username") ?? "").trim().toLowerCase();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const collegeName = String(formData.get("collegeName") ?? "").trim();
 
-  if (!fullName || !username || !collegeName) {
+  if (!fullName || !email || !collegeName) {
     return { ok: false, message: "All fields are required." };
   }
-  if (!/^[a-z0-9._-]{3,50}$/.test(username)) {
-    return { ok: false, message: "Username: 3–50 letters, numbers, dots, dashes or underscores." };
+  if (!isEmail(email)) {
+    return { ok: false, message: "Enter a valid email address." };
   }
   if (password.length < 8) {
     return { ok: false, message: "Password must be at least 8 characters." };
@@ -47,7 +49,7 @@ export async function setupAdmin(_: FormState, formData: FormData): Promise<Form
   }
 
   const user = await prisma.user.create({
-    data: { fullName, username, passwordHash: await hashPassword(password), role: "ADMIN" },
+    data: { fullName, email, passwordHash: await hashPassword(password), role: "ADMIN" },
   });
   await prisma.portalSettings.upsert({
     where: { id: 1 },

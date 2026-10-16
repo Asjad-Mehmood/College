@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { FileSpreadsheet, KeyRound, Snowflake, Sun, UploadCloud, UserPlus } from "lucide-react";
+import { FileSpreadsheet, KeyRound, Mail, Snowflake, Sun, UploadCloud, UserPlus } from "lucide-react";
 import type { Role } from "@/generated/prisma/enums";
 import { Button, Field, FormMessage, Input, Pill, Select, cx, fieldClass } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
@@ -13,6 +13,7 @@ import {
   saveSettings,
   setSchedule,
   setUserActive,
+  setUserEmail,
   uploadStudents,
   type SettingsState,
 } from "./actions";
@@ -260,8 +261,8 @@ export function NewUserForm() {
           ))}
         </Select>
       </Field>
-      <Field label="Username">
-        <Input name="username" required autoCapitalize="none" autoComplete="off" />
+      <Field label="Email" hint="Used to sign in">
+        <Input name="email" type="email" required maxLength={120} autoCapitalize="none" autoComplete="off" />
       </Field>
       <Field label="Password" hint="At least 8 characters">
         <Input name="password" type="password" required minLength={8} autoComplete="new-password" />
@@ -278,12 +279,47 @@ export function NewUserForm() {
   );
 }
 
-export function UserRowActions({ userId, active, isSelf }: { userId: number; active: boolean; isSelf: boolean }) {
-  const [mode, setMode] = useState<"idle" | "password">("idle");
+export function UserRowActions({ userId, active, isSelf, email }: { userId: number; active: boolean; isSelf: boolean; email: string }) {
+  const [mode, setMode] = useState<"idle" | "password" | "email">("idle");
+  const [newEmail, setNewEmail] = useState(email.includes("@") ? email : "");
   const [password, setPassword] = useState("");
   const [state, setState] = useState<SettingsState>(null);
   const [pending, start] = useTransition();
 
+  if (mode === "email") {
+    return (
+      <form
+        className="flex flex-wrap items-center justify-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          start(async () => {
+            const res = await setUserEmail(userId, newEmail);
+            setState(res);
+            if (res?.ok) setMode("idle");
+          });
+        }}
+      >
+        <input
+          type="email"
+          value={newEmail}
+          onChange={(e) => setNewEmail(e.target.value)}
+          placeholder="name@college.edu.pk"
+          maxLength={120}
+          required
+          autoFocus
+          autoComplete="off"
+          className={fieldClass("h-8 w-56")}
+        />
+        <Button size="sm" variant="primary" type="submit" disabled={pending}>
+          Save
+        </Button>
+        <Button size="sm" variant="ghost" type="button" onClick={() => setMode("idle")}>
+          Cancel
+        </Button>
+        {state && !state.ok && <span className="w-full text-right text-[12px] text-danger-ink">{state.message}</span>}
+      </form>
+    );
+  }
   if (mode === "password") {
     return (
       <form
@@ -324,6 +360,9 @@ export function UserRowActions({ userId, active, isSelf }: { userId: number; act
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {state?.ok && <span className="text-[12px] text-success-ink">{state.message}</span>}
+      <Button size="sm" variant={email.includes("@") ? "secondary" : "primary"} onClick={() => setMode("email")}>
+        <Mail className="size-3.5" aria-hidden /> {email.includes("@") ? "Change email" : "Set email"}
+      </Button>
       <Button size="sm" onClick={() => setMode("password")}>
         <KeyRound className="size-3.5" aria-hidden /> Reset password
       </Button>

@@ -114,7 +114,7 @@ async function SettingsContent() {
           <CardHeader title="Staff accounts" description="Gate staff can only log arrivals. The Principal can view and export but not edit." />
           <ul className="divide-y divide-line">
             {users.map((u) => (
-              <li key={u.id} className="flex flex-col gap-3 px-5 py-3 sm:flex-row sm:items-center">
+              <li key={u.id} className="flex flex-col gap-3 px-5 py-3 2xl:flex-row 2xl:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <Avatar name={u.fullName} size="sm" />
                   <div className="min-w-0">
@@ -124,11 +124,18 @@ async function SettingsContent() {
                       {!u.active && <Pill tone="critical">Deactivated</Pill>}
                     </p>
                     <p className="text-[12px] text-muted">
-                      <span className="font-mono">{u.username}</span> · {ROLE_LABELS[u.role]}
+                      {u.email.includes("@") ? (
+                        <span>{u.email}</span>
+                      ) : (
+                        <span className="text-danger-ink">
+                          No email yet — signs in with “<span className="font-mono">{u.email}</span>”
+                        </span>
+                      )}{" "}
+                      · {ROLE_LABELS[u.role]}
                     </p>
                   </div>
                 </div>
-                <UserRowActions userId={u.id} active={u.active} isSelf={u.id === me.id} />
+                <UserRowActions userId={u.id} active={u.active} isSelf={u.id === me.id} email={u.email} />
               </li>
             ))}
           </ul>

@@ -12,7 +12,7 @@ const SESSION_DAYS = 30;
 export type CurrentUser = {
   id: number;
   fullName: string;
-  username: string;
+  email: string;
   role: Role;
 };
 
@@ -53,8 +53,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (!session || session.expiresAt < new Date() || !session.user.active) {
     return null;
   }
-  const { id, fullName, username, role } = session.user;
-  return { id, fullName, username, role };
+  const { id, fullName, email, role } = session.user;
+  return { id, fullName, email, role };
 });
 
 export function homeFor(role: Role) {
