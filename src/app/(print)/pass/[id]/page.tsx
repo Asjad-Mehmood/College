@@ -42,8 +42,8 @@ async function Pass({ params }: { params: PageProps<"/pass/[id]">["params"] }) {
 
   return (
     <div className="flex justify-center px-4 py-8 print:p-0">
-      <style>{`@page { size: A6 portrait; margin: 6mm; }`}</style>
-      <article className="w-[380px] rounded-2xl border border-line bg-white p-6 text-black shadow-pop print:w-full print:rounded-none print:border-0 print:p-0 print:shadow-none">
+      <style>{`@page { size: A6 portrait; margin: 0; }`}</style>
+      <article className="w-[380px] rounded-2xl border border-line bg-white p-6 text-black shadow-pop print:w-full print:rounded-none print:border-0 print:p-[7mm] print:shadow-none">
         <header className="border-b-2 border-black pb-3 text-center">
           <p className="text-[15px] font-bold tracking-tight uppercase">{settings.collegeName}</p>
           <p className="mt-0.5 text-[12px] font-semibold tracking-[0.2em] uppercase">Late entry slip</p>

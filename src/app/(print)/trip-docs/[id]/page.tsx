@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { PrintFrame } from "@/components/print-frame";
 import { PrintToolbar } from "@/components/print-toolbar";
 import { Skeleton, cx } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -66,7 +67,7 @@ async function Docs({
         </div>
       </PrintToolbar>
       <div className="px-4 py-8 print:p-0">
-        <style>{`@page { size: A4; margin: 16mm; }`}</style>
+        <style>{`@page { size: A4; margin: 0; }`}</style>
         <div className="mx-auto flex max-w-[210mm] flex-col gap-6 print:max-w-none print:gap-0">
           {registered.length === 0 ? (
             <Paper>
@@ -89,10 +90,12 @@ async function Docs({
 
 type Row = FullTrip["participants"][number];
 
-function Paper({ children, className }: { children: React.ReactNode; className?: string }) {
+function Paper({ children, className, band = "14mm" }: { children: React.ReactNode; className?: string; band?: string }) {
   return (
-    <article className={cx("bg-white p-[12mm] text-[13px] leading-relaxed text-black shadow-pop print:p-0 print:shadow-none", className)}>
-      {children}
+    <article className={cx("bg-white p-[12mm] text-[13px] leading-relaxed text-black shadow-pop print:px-[16mm] print:py-0 print:shadow-none", className)}>
+      <PrintFrame top={band} bottom={band}>
+        {children}
+      </PrintFrame>
     </article>
   );
 }
@@ -113,7 +116,7 @@ const t12 = (hhmm: string) => formatMinutes(parseHHMM(hhmm));
 function Slip({ trip, p, settings }: { trip: FullTrip; p: Row; settings: Settings }) {
   const fee = Number(trip.feeAmount);
   return (
-    <Paper className="break-inside-avoid print:min-h-[132mm] print:border-b print:border-dashed print:border-black print:pb-[6mm] print:not-first:pt-[6mm]">
+    <Paper band="7mm" className="break-inside-avoid print:min-h-[130mm] print:border-b print:border-dashed print:border-black">
       <Letterhead settings={settings} subtitle="Parent permission slip" />
       <p className="mt-3 text-center text-[15px] font-semibold">
         {trip.title} <span className="font-normal">({TRIP_TYPE_LABELS[trip.type]})</span>

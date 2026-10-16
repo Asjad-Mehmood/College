@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { PrintFrame } from "@/components/print-frame";
 import { PrintToolbar } from "@/components/print-toolbar";
 import { Skeleton } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -33,8 +34,9 @@ async function Sheet({ params }: { params: PageProps<"/class-list/[section]">["p
   const head = ["#", "Roll no.", "Name", "Father / guardian", "Program", "Parent phone", "Signature"];
   return (
     <div className="px-4 py-8 print:p-0">
-      <style>{`@page { size: A4; margin: 16mm 18mm; }`}</style>
-      <article className="mx-auto max-w-[210mm] bg-white p-[12mm] text-[13px] leading-relaxed text-black shadow-pop print:max-w-none print:p-0 print:shadow-none">
+      <style>{`@page { size: A4; margin: 0; }`}</style>
+      <article className="mx-auto max-w-[210mm] bg-white p-[12mm] text-[13px] leading-relaxed text-black shadow-pop print:max-w-none print:px-[16mm] print:py-0 print:shadow-none">
+        <PrintFrame>
         <header className="border-b-2 border-black pb-2 text-center">
           <p className="text-lg font-bold tracking-tight uppercase">{settings.collegeName}</p>
           {settings.collegeAddress && <p className="text-[12px]">{settings.collegeAddress}</p>}
@@ -78,6 +80,7 @@ async function Sheet({ params }: { params: PageProps<"/class-list/[section]">["p
             ))}
           </tbody>
         </table>
+      </PrintFrame>
       </article>
     </div>
   );
