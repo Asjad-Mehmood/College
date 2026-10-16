@@ -7,6 +7,11 @@ import {
   ArrowUpRight,
   Bus,
   Banknote,
+  CheckCircle2,
+  FilePlus2,
+  MapPinPlus,
+  ScanSearch,
+  Trophy,
   CalendarDays,
   Clock,
   DoorOpen,
@@ -18,7 +23,6 @@ import {
 import { BarList, TrendChart } from "@/components/charts";
 import {
   Avatar,
-  ButtonLink,
   Card,
   CardHeader,
   EmptyState,
@@ -28,7 +32,7 @@ import {
   cx,
 } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
-import { SEVERITY_LABELS, SEVERITY_LEVEL } from "@/lib/labels";
+import { REASON_LABELS, SEVERITY_LABELS, SEVERITY_LEVEL } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { STRIKE_LABELS, strikeLevel } from "@/lib/strikes";
@@ -51,8 +55,17 @@ export default function DashboardPage() {
       <Suspense fallback={<PageHeader title="Dashboard" description="Today at a glance." />}>
         <Header />
       </Suspense>
+      <Suspense fallback={<Skeleton className="mb-5 h-14 rounded-2xl" />}>
+        <QuickActions />
+      </Suspense>
+      <Suspense fallback={<Skeleton className="mb-5 h-48 rounded-2xl" />}>
+        <AttentionAndOverview />
+      </Suspense>
       <Suspense fallback={<DashboardSkeleton />}>
         <Dashboard />
+      </Suspense>
+      <Suspense fallback={<Skeleton className="mt-5 h-64 rounded-2xl" />}>
+        <Patterns />
       </Suspense>
       <Suspense fallback={<Skeleton className="mt-5 h-64 rounded-2xl" />}>
         <ViolationsPanel />
@@ -68,17 +81,12 @@ async function Header() {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
   const settings = await getSettings();
   const today = localParts(new Date(), settings.timezone).date;
+  const hour = localParts(new Date(), settings.timezone).minutes / 60;
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   return (
     <PageHeader
-      title="Dashboard"
+      title={`${greeting}, ${user.fullName.split(" ").slice(0, 2).join(" ")}`}
       description={`${formatDate(today, { weekday: true })} · ${settings.collegeName}`}
-      actions={
-        can.logLate(user.role) && (
-          <ButtonLink href="/gate" variant="primary">
-            <DoorOpen className="size-4" aria-hidden /> Open gate mode
-          </ButtonLink>
-        )
-      }
     />
   );
 }
@@ -523,5 +531,212 @@ function Delta({ today, yesterday }: { today: number; yesterday: number }) {
       <Icon className="size-3.5" aria-hidden />
       {Math.abs(diff)} {up ? "more" : "fewer"} than yesterday ({yesterday})
     </span>
+  );
+}
+
+async function QuickActions() {
+  const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const admin = can.administer(user.role);
+  const actions = [
+    ...(can.logLate(user.role) ? [{ href: "/gate", label: "Gate check-in", Icon: DoorOpen }] : []),
+    ...(admin ? [{ href: "/violations/new", label: "Record violation", Icon: FilePlus2 }] : []),
+    { href: "/audit", label: "Find a student", Icon: ScanSearch },
+    { href: "/records", label: "Late records", Icon: CalendarDays },
+    ...(admin ? [{ href: "/trips/new", label: "Plan a trip", Icon: MapPinPlus }] : [{ href: "/trips", label: "Trips", Icon: Bus }]),
+    { href: "/sports", label: "Sports", Icon: Trophy },
+  ];
+  return (
+    <nav className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" aria-label="Quick actions">
+      {actions.map(({ href, label, Icon }) => (
+        <Link
+          key={href}
+          href={href}
+          className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-3 text-sm font-medium shadow-card transition-colors hover:border-accent/50 hover:bg-accent-soft/40"
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-ink">
+            <Icon className="size-4" aria-hidden />
+          </span>
+          <span className="truncate">{label}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+async function AttentionAndOverview() {
+  await requireUser(["ADMIN", "PRINCIPAL"]);
+  const settings = await getSettings();
+  const today = localParts(new Date(), settings.timezone).date;
+  const mStart = toDbDate(monthStart(today));
+  const weekAhead = toDbDate(addDays(today, 7));
+  const [
+    staleCases,
+    severeOpen,
+    lateFines,
+    violationFines,
+    habitual,
+    soonTrips,
+    activeStudents,
+    eveningStudents,
+    violationsMonth,
+    upcomingTrips,
+    events,
+  ] = await Promise.all([
+    prisma.violation.count({ where: { status: "OPEN", incidentDate: { lt: toDbDate(addDays(today, -7)) } } }),
+    prisma.violation.count({ where: { status: "OPEN", severity: { in: ["MAJOR", "SEVERE"] } } }),
+    prisma.lateRecord.aggregate({ where: { fineAmount: { gt: 0 }, finePaid: false }, _sum: { fineAmount: true } }),
+    prisma.violation.aggregate({ where: { fineAmount: { gt: 0 }, finePaid: false }, _sum: { fineAmount: true } }),
+    prisma.lateRecord.groupBy({ by: ["rollNo"], where: { lateDate: { gte: mStart } }, _count: { _all: true }, having: { rollNo: { _count: { gte: settings.habitualThreshold } } } }),
+    prisma.trip.findMany({
+      where: { status: { in: ["OPEN", "CLOSED"] }, departDate: { gte: toDbDate(today), lte: weekAhead } },
+      include: { participants: { where: { status: "REGISTERED" }, select: { consent: true, feePaid: true } } },
+      orderBy: { departDate: "asc" },
+    }),
+    prisma.student.count({ where: { status: "ACTIVE" } }),
+    prisma.$queryRaw<{ n: bigint }[]>`SELECT COUNT(*) AS n FROM students WHERE status = 'ACTIVE' AND section IN (SELECT name FROM sections WHERE shift = 'EVENING')`,
+    prisma.violation.count({ where: { incidentDate: { gte: mStart } } }),
+    prisma.trip.count({ where: { status: { in: ["OPEN", "CLOSED", "DEPARTED"] } } }),
+    prisma.sportsEvent.findMany({ where: { endDate: { gte: toDbDate(today) } }, orderBy: { startDate: "asc" }, take: 3 }),
+  ]);
+  const unpaid = Number(lateFines._sum.fineAmount ?? 0) + Number(violationFines._sum.fineAmount ?? 0);
+  const evening = Number(eveningStudents[0]?.n ?? 0);
+
+  const items: { text: string; sub: string; href: string; tone: "critical" | "warning" }[] = [];
+  if (severeOpen) items.push({ text: `${severeOpen} open major/severe ${severeOpen === 1 ? "case" : "cases"}`, sub: "Review and take action", href: "/violations?view=search&range=all&status=OPEN", tone: "critical" });
+  if (staleCases) items.push({ text: `${staleCases} ${staleCases === 1 ? "case has" : "cases have"} been open more than a week`, sub: "Close them once action is complete", href: "/violations?view=search&range=all&status=OPEN", tone: "warning" });
+  if (habitual.length) items.push({ text: `${habitual.length} habitual late-comer${habitual.length === 1 ? "" : "s"} this month`, sub: `${settings.habitualThreshold}+ late arrivals — consider warning letters`, href: "/records?view=search&range=month&habitual=1", tone: "warning" });
+  for (const t of soonTrips) {
+    const pending = t.participants.filter((p) => p.consent === "PENDING").length;
+    const fee = Number(t.feeAmount);
+    const unpaidFees = fee > 0 ? t.participants.filter((p) => Number(p.feePaid) < fee).length : 0;
+    if (pending || unpaidFees) {
+      items.push({
+        text: `${t.title} leaves ${formatDate(fromDbDate(t.departDate))}`,
+        sub: [pending && `${pending} consent pending`, unpaidFees && `${unpaidFees} fees unpaid`].filter(Boolean).join(" · "),
+        href: `/trips/${t.id}?tab=students`,
+        tone: "warning",
+      });
+    }
+  }
+  if (unpaid > 0) items.push({ text: `Rs. ${unpaid.toLocaleString()} in unpaid fines`, sub: "Late arrivals and violations together", href: "/records?view=search&range=all&fines=unpaid", tone: "warning" });
+
+  const overview = [
+    { label: "Active students", value: activeStudents.toLocaleString(), sub: evening ? `Morning ${activeStudents - evening} · Evening ${evening}` : "All in the morning shift", href: "/students", Icon: Users },
+    { label: "Violations this month", value: violationsMonth.toLocaleString(), sub: `${severeOpen} serious still open`, href: "/violations", Icon: ShieldAlert },
+    { label: "Trips ahead", value: upcomingTrips.toLocaleString(), sub: soonTrips.length ? `${soonTrips.length} within 7 days` : "none this week", href: "/trips", Icon: Bus },
+    {
+      label: "Sports events",
+      value: events.length.toLocaleString(),
+      sub: events[0] ? `${events[0].name} · ${formatDate(fromDbDate(events[0].startDate))}` : "none scheduled",
+      href: events[0] ? `/sports/events/${events[0].id}` : "/sports",
+      Icon: Trophy,
+    },
+  ];
+
+  return (
+    <div className="mb-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <Card className="overflow-hidden">
+        <CardHeader title="Needs attention" description={items.length ? `${items.length} ${items.length === 1 ? "item" : "items"} to follow up` : "All clear"} />
+        {items.length === 0 ? (
+          <p className="flex items-center gap-2 px-5 py-6 text-sm text-ink-2">
+            <CheckCircle2 className="size-5 text-good" aria-hidden /> Nothing urgent — no open serious cases, unpaid fines or trip deadlines.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {items.slice(0, 6).map((x) => (
+              <li key={x.text}>
+                <Link href={x.href} className="flex items-center gap-3 px-5 py-3 hover:bg-surface-2/60">
+                  <span className={cx("size-2.5 shrink-0 rounded-full", x.tone === "critical" ? "bg-critical" : "bg-warning")} aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{x.text}</span>
+                    <span className="block truncate text-[12px] text-muted">{x.sub}</span>
+                  </span>
+                  <ArrowRight className="size-4 shrink-0 text-muted" aria-hidden />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      <div className="grid grid-cols-2 gap-3">
+        {overview.map(({ label, value, sub, href, Icon }) => (
+          <Link key={label} href={href} className="group">
+            <Card className="h-full p-4 transition-colors group-hover:border-line-strong">
+              <p className="flex items-center gap-2 text-[13px] font-medium text-ink-2">
+                <Icon className="size-4 text-muted" aria-hidden /> {label}
+              </p>
+              <p className="mt-2 text-2xl font-semibold tabular">{value}</p>
+              <p className="mt-0.5 truncate text-[12px] text-muted" title={sub}>
+                {sub}
+              </p>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+async function Patterns() {
+  await requireUser(["ADMIN", "PRINCIPAL"]);
+  const settings = await getSettings();
+  const today = localParts(new Date(), settings.timezone).date;
+  const from = toDbDate(addDays(today, -89));
+  const mStart = toDbDate(monthStart(today));
+  const [byDow, bySection, byReason] = await Promise.all([
+    prisma.$queryRaw<{ dow: number; n: bigint }[]>`
+      SELECT EXTRACT(DOW FROM late_date)::int AS dow, COUNT(*) AS n
+      FROM late_records WHERE late_date >= ${from} GROUP BY 1`,
+    prisma.$queryRaw<{ section: string; n: bigint; students: bigint }[]>`
+      SELECT s.section, COUNT(*) AS n, COUNT(DISTINCT r.roll_no) AS students
+      FROM late_records r JOIN students s ON s.roll_no = r.roll_no
+      WHERE r.late_date >= ${mStart} GROUP BY s.section ORDER BY n DESC LIMIT 6`,
+    prisma.lateRecord.groupBy({ by: ["reason"], where: { lateDate: { gte: mStart } }, _count: { _all: true } }),
+  ]);
+  if (byDow.length === 0 && bySection.length === 0) return null;
+  const dow = new Map(byDow.map((d) => [d.dow, Number(d.n)]));
+  // College week: Monday to Saturday (Sunday only if anything was logged).
+  const days = [1, 2, 3, 4, 5, 6, ...(dow.get(0) ? [0] : [])].map((d) => ({ label: WEEKDAY_NAMES[d], value: dow.get(d) ?? 0 }));
+  const worst = days.reduce((a, b) => (b.value > a.value ? b : a), days[0]);
+  const reasons = [...byReason].sort((a, b) => b._count._all - a._count._all);
+  const reasonTotal = reasons.reduce((a, r) => a + r._count._all, 0);
+
+  return (
+    <div className="mt-5 grid items-start gap-5 lg:grid-cols-3">
+      <Card>
+        <CardHeader title="Late arrivals by weekday" description={worst?.value ? `Last 90 days · most on ${worst.label}s` : "Last 90 days"} />
+        <div className="px-5 py-5">
+          <BarList data={days} />
+        </div>
+      </Card>
+      <Card>
+        <CardHeader title="Sections with most lates" description={formatMonth(today)} />
+        <div className="px-5 py-5">
+          {bySection.length === 0 ? (
+            <EmptyState title="No late arrivals this month" />
+          ) : (
+            <BarList data={bySection.map((x) => ({ label: x.section, value: Number(x.n), sub: `${Number(x.students)} students` }))} />
+          )}
+        </div>
+      </Card>
+      <Card>
+        <CardHeader title="Reasons given" description={formatMonth(today)} />
+        <div className="px-5 py-5">
+          {reasons.length === 0 ? (
+            <EmptyState title="No late arrivals this month" />
+          ) : (
+            <BarList
+              data={reasons.map((r) => ({
+                label: REASON_LABELS[r.reason],
+                value: r._count._all,
+                sub: `${Math.round((r._count._all / reasonTotal) * 100)}%`,
+              }))}
+            />
+          )}
+        </div>
+      </Card>
+    </div>
   );
 }
