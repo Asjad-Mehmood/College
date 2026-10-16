@@ -8,11 +8,12 @@ import { requireUser } from "@/lib/auth";
 import { CONSENT_LABELS, TRIP_TYPE_LABELS } from "@/lib/labels";
 import { getSettings, type Settings } from "@/lib/settings";
 import { formatDate, formatMinutes, fromDbDate, localParts, parseHHMM } from "@/lib/time";
+import { compareSections } from "@/lib/sections";
 import { getTrip, type FullTrip, tripWhen } from "@/lib/trips";
 
 export const metadata: Metadata = { title: "Trip documents" };
 
-const DOCS = { slips: "Parent permission slips", list: "Student list", bus: "Bus lists" } as const;
+const DOCS = { slips: "Parent permission slips", list: "Student list", bus: "Bus lists", rooms: "Room list" } as const;
 type Doc = keyof typeof DOCS;
 
 export default function TripDocsPage(props: PageProps<"/trip-docs/[id]">) {
@@ -44,13 +45,16 @@ async function Docs({
   const doc: Doc = typeof sp.doc === "string" && sp.doc in DOCS ? (sp.doc as Doc) : "slips";
   const [trip, settings] = await Promise.all([getTrip(id), getSettings()]);
   if (!trip) notFound();
-  const registered = trip.participants.filter((p) => p.status === "REGISTERED");
+  // Every document runs section by section.
+  const registered = trip.participants
+    .filter((p) => p.status === "REGISTERED")
+    .sort((a, b) => compareSections(a.student.section, b.student.section) || a.rollNo.localeCompare(b.rollNo));
 
   return (
     <>
       <PrintToolbar title={`${DOCS[doc]} — ${trip.title}`}>
         <div className="flex flex-wrap gap-1">
-          {(Object.keys(DOCS) as Doc[]).map((d) => (
+          {(Object.keys(DOCS) as Doc[]).filter((d) => d !== "rooms" || trip.overnight).map((d) => (
             <Link
               key={d}
               href={`/trip-docs/${trip.id}?doc=${d}`}
@@ -72,6 +76,8 @@ async function Docs({
             registered.map((p) => <Slip key={p.id} trip={trip} p={p} settings={settings} />)
           ) : doc === "list" ? (
             <StudentList trip={trip} rows={registered} settings={settings} />
+          ) : doc === "rooms" ? (
+            <RoomList trip={trip} rows={registered} settings={settings} />
           ) : (
             <BusLists trip={trip} rows={registered} settings={settings} />
           )}
@@ -151,6 +157,7 @@ function Slip({ trip, p, settings }: { trip: FullTrip; p: Row; settings: Setting
 function StudentList({ trip, rows, settings }: { trip: FullTrip; rows: Row[]; settings: Settings }) {
   const fee = Number(trip.feeAmount);
   const vehicle = new Map(trip.vehicles.map((v) => [v.id, v.name]));
+  const room = new Map(trip.rooms.map((r) => [r.id, r.name]));
   return (
     <Paper>
       <Letterhead settings={settings} subtitle="Trip student list" />
@@ -176,7 +183,7 @@ function StudentList({ trip, rows, settings }: { trip: FullTrip; rows: Row[]; se
       <table className="mt-3 w-full border-collapse text-[11px]">
         <thead>
           <tr>
-            {["#", "Roll no.", "Name", "Father", "Class", "Consent", ...(fee > 0 ? ["Fee"] : []), "Emergency", "Vehicle"].map((h) => (
+            {["#", "Roll no.", "Name", "Father", "Section", "Consent", ...(fee > 0 ? ["Fee"] : []), "Emergency", "Vehicle", ...(trip.overnight ? ["Room"] : [])].map((h) => (
               <th key={h} className="border border-black bg-neutral-100 px-1.5 py-1 text-left font-semibold">
                 {h}
               </th>
@@ -190,9 +197,7 @@ function StudentList({ trip, rows, settings }: { trip: FullTrip; rows: Row[]; se
               <td className="border border-black px-1.5 py-1 font-mono">{p.rollNo}</td>
               <td className="border border-black px-1.5 py-1">{p.student.fullName}</td>
               <td className="border border-black px-1.5 py-1">{p.student.fatherName}</td>
-              <td className="border border-black px-1.5 py-1">
-                {p.student.program} {p.student.section}
-              </td>
+              <td className="border border-black px-1.5 py-1">{p.student.section}</td>
               <td className="border border-black px-1.5 py-1">{CONSENT_LABELS[p.consent]}</td>
               {fee > 0 && (
                 <td className="border border-black px-1.5 py-1">
@@ -201,6 +206,7 @@ function StudentList({ trip, rows, settings }: { trip: FullTrip; rows: Row[]; se
               )}
               <td className="border border-black px-1.5 py-1">{p.emergencyPhone ?? p.student.parentPhone}</td>
               <td className="border border-black px-1.5 py-1">{p.vehicleId ? vehicle.get(p.vehicleId) : "—"}</td>
+              {trip.overnight && <td className="border border-black px-1.5 py-1">{p.roomId ? room.get(p.roomId) : "—"}</td>}
             </tr>
           ))}
         </tbody>
@@ -248,7 +254,7 @@ function BusLists({ trip, rows, settings }: { trip: FullTrip; rows: Row[]; setti
           <table className="mt-3 w-full border-collapse text-[11px]">
             <thead>
               <tr>
-                {["#", "Roll no.", "Name", "Class", "Emergency phone", "Medical notes", "Out", "Back"].map((h) => (
+                {["#", "Roll no.", "Name", "Section", "Emergency phone", "Medical notes", "Out", "Back"].map((h) => (
                   <th key={h} className="border border-black bg-neutral-100 px-1.5 py-1 text-left font-semibold">
                     {h}
                   </th>
@@ -261,9 +267,7 @@ function BusLists({ trip, rows, settings }: { trip: FullTrip; rows: Row[]; setti
                   <td className="border border-black px-1.5 py-1">{i + 1}</td>
                   <td className="border border-black px-1.5 py-1 font-mono">{p.rollNo}</td>
                   <td className="border border-black px-1.5 py-1">{p.student.fullName}</td>
-                  <td className="border border-black px-1.5 py-1">
-                    {p.student.program} {p.student.section}
-                  </td>
+                  <td className="border border-black px-1.5 py-1">{p.student.section}</td>
                   <td className="border border-black px-1.5 py-1">{p.emergencyPhone ?? p.student.parentPhone}</td>
                   <td className="border border-black px-1.5 py-1">{p.medicalNotes ?? ""}</td>
                   <td className="w-10 border border-black px-1.5 py-1" />
@@ -276,5 +280,55 @@ function BusLists({ trip, rows, settings }: { trip: FullTrip; rows: Row[]; setti
         </Paper>
       ))}
     </>
+  );
+}
+
+function RoomList({ trip, rows, settings }: { trip: FullTrip; rows: Row[]; settings: Settings }) {
+  const unplaced = rows.filter((p) => p.roomId == null);
+  return (
+    <Paper>
+      <Letterhead settings={settings} subtitle="Room list" />
+      <div className="mt-3 flex flex-wrap justify-between gap-2">
+        <div>
+          <p className="text-[15px] font-semibold">{trip.title}</p>
+          <p>
+            {trip.destination} · {tripWhen(trip)}
+          </p>
+        </div>
+        <p className="text-right">
+          {trip.rooms.length} rooms · {rows.length - unplaced.length} of {rows.length} students placed
+        </p>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        {trip.rooms.map((r) => {
+          const occupants = rows.filter((p) => p.roomId === r.id);
+          return (
+            <div key={r.id} className="break-inside-avoid border border-black">
+              <p className="flex justify-between border-b border-black bg-neutral-100 px-2 py-1 font-semibold">
+                <span>{r.name}</span>
+                <span className="font-normal">
+                  {occupants.length}/{r.beds} beds
+                </span>
+              </p>
+              {(r.place || r.notes) && <p className="border-b border-black px-2 py-0.5 text-[11px]">{[r.place, r.notes].filter(Boolean).join(" · ")}</p>}
+              <ol className="px-2 py-1 text-[12px]">
+                {occupants.map((p, i) => (
+                  <li key={p.id}>
+                    {i + 1}. {p.student.fullName} <span className="font-mono text-[11px]">({p.rollNo}, {p.student.section})</span>
+                  </li>
+                ))}
+                {occupants.length === 0 && <li className="text-neutral-500">Empty</li>}
+              </ol>
+            </div>
+          );
+        })}
+      </div>
+      {unplaced.length > 0 && (
+        <p className="mt-4 text-[12px]">
+          <span className="font-semibold">Not yet placed ({unplaced.length}): </span>
+          {unplaced.map((p) => `${p.student.fullName} (${p.student.section})`).join(", ")}
+        </p>
+      )}
+    </Paper>
   );
 }

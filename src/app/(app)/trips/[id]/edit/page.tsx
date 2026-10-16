@@ -62,6 +62,7 @@ async function Edit({ params }: { params: PageProps<"/trips/[id]/edit">["params"
           consentDeadline: d(trip.consentDeadline),
           inChargeName: trip.inChargeName,
           inChargePhone: trip.inChargePhone ?? "",
+          overnight: trip.overnight,
         }}
       />
     </>

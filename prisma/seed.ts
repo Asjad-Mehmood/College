@@ -42,11 +42,12 @@ const pick = <T,>(list: readonly T[]) => list[Math.floor(rand() * list.length)];
 const FIRST = ["Ali", "Hamza", "Usman", "Bilal", "Ahmed", "Hassan", "Zain", "Saad", "Fahad", "Umar", "Ayesha", "Fatima", "Hira", "Sana", "Maryam", "Zainab", "Iqra", "Noor", "Areeba", "Mahnoor", "Talha", "Abdullah", "Haris", "Danish", "Rabia"];
 const LAST = ["Raza", "Khan", "Ahmed", "Malik", "Butt", "Chaudhry", "Sheikh", "Qureshi", "Javed", "Iqbal", "Hussain", "Akhtar", "Mehmood", "Shah", "Abbasi"];
 const FATHER_FIRST = ["Muhammad", "Abdul", "Ghulam", "Tariq", "Khalid", "Imran", "Nadeem", "Shahid", "Asif", "Zahid", "Rashid", "Arshad"];
+// Section codes like the college uses (CD1, CD2, …).
 const PROGRAMS = [
-  { name: "FSc Pre-Engineering", code: "PE", sections: ["1st Year - A", "1st Year - B", "2nd Year - A"] },
-  { name: "FSc Pre-Medical", code: "PM", sections: ["1st Year - A", "2nd Year - A", "2nd Year - B"] },
-  { name: "ICS", code: "ICS", sections: ["1st Year - A", "2nd Year - A"] },
-  { name: "BSCS", code: "CS", sections: ["Sem 3 - A", "Sem 5 - A"] },
+  { name: "FSc Pre-Engineering", code: "PE", sections: ["CD1", "CD2", "CD3"] },
+  { name: "FSc Pre-Medical", code: "PM", sections: ["CD4", "CD5", "CD6"] },
+  { name: "ICS", code: "ICS", sections: ["CD7", "CD8"] },
+  { name: "BSCS", code: "CS", sections: ["CD 54", "CD 55"] },
 ] as const;
 const REASONS: LateReason[] = ["TRANSPORT", "TRANSPORT", "TRAFFIC", "TRAFFIC", "MEDICAL", "WEATHER", "NO_EXCUSE", "NO_EXCUSE"];
 

@@ -6,6 +6,7 @@ import { MessageCircle, MoreHorizontal, Plus, Search, TriangleAlert, Users } fro
 import type { ConsentStatus } from "@/generated/prisma/enums";
 import { Avatar, Button, Card, CardHeader, FormMessage, Input, Pill, Select, cx, fieldClass } from "@/components/ui";
 import { CONSENT_LABELS } from "@/lib/labels";
+import { groupBySection } from "@/lib/sections";
 import {
   addClass,
   addParticipant,
@@ -32,6 +33,7 @@ export type ParticipantView = {
   medicalNotes: string | null;
   emergencyPhone: string | null;
   vehicleName: string | null;
+  roomName: string | null;
   overrideNote: string | null;
   messages: { notice: string; consent: string; fee: string };
 };
@@ -136,31 +138,29 @@ export function AddStudents({ tripId, programs, sections }: { tripId: number; pr
         </div>
 
         <div>
-          <p className="mb-2 text-[13px] font-medium text-ink-2">A whole class</p>
+          <p className="mb-2 text-[13px] font-medium text-ink-2">A whole section</p>
           <form
             className="flex flex-col gap-2 sm:flex-row"
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
-              start(async () => setClassState(await addClass(tripId, String(fd.get("program")), String(fd.get("section") ?? ""))));
+              start(async () => setClassState(await addClass(tripId, String(fd.get("program") ?? ""), String(fd.get("section") ?? ""))));
             }}
           >
-            <Select name="program" aria-label="Program" required defaultValue="">
-              <option value="" disabled>
-                Program…
-              </option>
-              {programs.map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </Select>
             <Select name="section" aria-label="Section" defaultValue="">
-              <option value="">All sections</option>
+              <option value="">Section…</option>
               {sections.map((s) => (
                 <option key={s}>{s}</option>
               ))}
             </Select>
+            <Select name="program" aria-label="Program" defaultValue="">
+              <option value="">Any program</option>
+              {programs.map((p) => (
+                <option key={p}>{p}</option>
+              ))}
+            </Select>
             <Button type="submit" disabled={pending} className="shrink-0">
-              <Users className="size-4" aria-hidden /> Add class
+              <Users className="size-4" aria-hidden /> Add section
             </Button>
           </form>
           <p className="mt-2 text-[12px] text-muted">
@@ -236,11 +236,24 @@ export function ParticipantTable({
       {visible.length === 0 ? (
         <p className="px-5 py-10 text-center text-sm text-muted">{rows.length === 0 ? "No students added yet." : "Nobody in this list."}</p>
       ) : (
-        <ul className="divide-y divide-line">
-          {visible.map((r) => (
-            <ParticipantRow key={r.id} row={r} fee={fee} editable={editable} enrolmentOpen={enrolmentOpen} />
-          ))}
-        </ul>
+        groupBySection(visible, (r) => r.section).map(([section, group]) => (
+          <section key={section}>
+            <p className="flex flex-wrap items-center gap-x-3 border-y border-line bg-surface-2/50 px-5 py-1.5 text-[12px] font-semibold text-ink-2">
+              <span>
+                {section} · {group.length}
+              </span>
+              <span className="font-normal text-muted">
+                {group.filter((r) => r.consent === "RECEIVED").length} consent received
+                {fee > 0 && ` · ${group.filter((r) => r.feePaid >= fee).length} paid`}
+              </span>
+            </p>
+            <ul className="divide-y divide-line">
+              {group.map((r) => (
+                <ParticipantRow key={r.id} row={r} fee={fee} editable={editable} enrolmentOpen={enrolmentOpen} />
+              ))}
+            </ul>
+          </section>
+        ))
       )}
     </Card>
   );
@@ -266,8 +279,9 @@ function ParticipantRow({ row: r, fee, editable, enrolmentOpen }: { row: Partici
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium group-hover:underline">{r.fullName}</span>
             <span className="block truncate text-[12px] text-muted">
-              <span className="font-mono">{r.rollNo}</span> · {r.program} {r.section}
+              <span className="font-mono">{r.rollNo}</span> · {r.program}
               {r.vehicleName && ` · ${r.vehicleName}`}
+              {r.roomName && ` · ${r.roomName}`}
             </span>
           </span>
           {r.overrideNote && (

@@ -16,6 +16,7 @@ export async function GET(_: NextRequest, ctx: RouteContext<"/api/export/trips/[
   const settings = await getSettings();
   const fee = Number(trip.feeAmount);
   const vehicle = new Map(trip.vehicles.map((v) => [v.id, v.name]));
+  const room = new Map(trip.rooms.map((r) => [r.id, r.name]));
 
   const sheet = XLSX.utils.json_to_sheet(
     trip.participants.map((p) => ({
@@ -31,6 +32,7 @@ export async function GET(_: NextRequest, ctx: RouteContext<"/api/export/trips/[
       "Paid (Rs)": Number(p.feePaid),
       "Receipt No": p.receiptNo ?? "",
       Vehicle: p.vehicleId ? (vehicle.get(p.vehicleId) ?? "") : "",
+      Room: p.roomId ? (room.get(p.roomId) ?? "") : "",
       "Emergency Phone": p.emergencyPhone ?? p.student.parentPhone,
       "Medical Notes": p.medicalNotes ?? "",
       Departed: p.departedAt ? formatTime(p.departedAt, settings.timezone) : "",
@@ -38,7 +40,7 @@ export async function GET(_: NextRequest, ctx: RouteContext<"/api/export/trips/[
       "Discipline Override": p.overrideNote ?? "",
     })),
   );
-  sheet["!cols"] = [12, 22, 22, 20, 14, 11, 10, 12, 8, 9, 12, 16, 15, 28, 9, 9, 30].map((wch) => ({ wch }));
+  sheet["!cols"] = [12, 22, 22, 20, 14, 11, 10, 12, 8, 9, 12, 16, 12, 15, 28, 9, 9, 30].map((wch) => ({ wch }));
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, "Students");
   const buffer: Buffer = XLSX.write(book, { type: "buffer", bookType: "xlsx" });

@@ -15,6 +15,7 @@ import { getTrip, tripParentMessage, tripSummary, tripWhen } from "@/lib/trips";
 import { RollCall, type RollCallRow } from "./roll-call";
 import { AddStudents, MessagePanel, ParticipantTable, type ParticipantView } from "./students";
 import { StaffPanel, TripControls } from "./trip-controls";
+import { RoomsPanel } from "./rooms";
 import { TransportPanel } from "./transport";
 
 export const metadata: Metadata = { title: "Trip" };
@@ -23,6 +24,7 @@ const TABS = [
   { key: "overview", label: "Overview" },
   { key: "students", label: "Students" },
   { key: "transport", label: "Transport" },
+  { key: "rooms", label: "Rooms" },
   { key: "rollcall", label: "Roll call" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
@@ -51,9 +53,11 @@ async function Trip({
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
   const sp = await searchParams;
-  const tab: Tab = TABS.some((t) => t.key === sp.tab) ? (sp.tab as Tab) : "overview";
   const [trip, settings] = await Promise.all([getTrip(id), getSettings()]);
   if (!trip) notFound();
+  // The Rooms tab only exists for night-stay trips.
+  const tabs = TABS.filter((t) => t.key !== "rooms" || trip.overnight);
+  const tab: Tab = tabs.some((t) => t.key === sp.tab) ? (sp.tab as Tab) : "overview";
 
   const admin = can.administer(user.role);
   const fee = Number(trip.feeAmount);
@@ -87,14 +91,14 @@ async function Trip({
       </div>
 
       <div className="no-print flex flex-wrap items-center justify-between gap-3">
-        <nav className="inline-flex rounded-xl border border-line bg-surface p-1 shadow-card" aria-label="Trip sections">
-          {TABS.map((t) => (
+        <nav className="inline-flex max-w-full overflow-x-auto rounded-xl border border-line bg-surface p-1 shadow-card" aria-label="Trip sections">
+          {tabs.map((t) => (
             <Link
               key={t.key}
               href={t.key === "overview" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t.key}`}
               aria-current={tab === t.key ? "page" : undefined}
               className={cx(
-                "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors sm:px-3.5",
+                "rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors sm:px-3.5",
                 tab === t.key ? "bg-accent-soft text-accent-ink" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
               )}
             >
@@ -113,6 +117,11 @@ async function Trip({
           <a href={`/trip-docs/${trip.id}?doc=bus`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
             <Printer className="size-3.5" aria-hidden /> Bus lists
           </a>
+          {trip.overnight && (
+            <a href={`/trip-docs/${trip.id}?doc=rooms`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
+              <Printer className="size-3.5" aria-hidden /> Room list
+            </a>
+          )}
           <a href={`/api/export/trips/${trip.id}`} className={buttonClass("secondary", "sm")}>
             <FileSpreadsheet className="size-3.5" aria-hidden /> Excel
           </a>
@@ -131,6 +140,7 @@ async function Trip({
                 <Info label="Teacher in charge">{`${trip.inChargeName}${trip.inChargePhone ? ` · ${trip.inChargePhone}` : ""}`}</Info>
                 <Info label="Open to">{trip.programs.length ? trip.programs.join(", ") : "All programs"}</Info>
                 <Info label="Seats">{trip.seats ?? "No limit"}</Info>
+                <Info label="Night stay">{trip.overnight ? `Yes · ${trip.rooms.length} rooms, ${trip.rooms.reduce((s, r) => s + r.beds, 0)} beds` : "No"}</Info>
                 <Info label="Fee">{fee > 0 ? `Rs. ${fee.toLocaleString()}${trip.feeDeadline ? ` · pay by ${formatDate(fromDbDate(trip.feeDeadline))}` : ""}` : "Free"}</Info>
                 <Info label="Consent deadline">{trip.consentDeadline ? formatDate(fromDbDate(trip.consentDeadline)) : "—"}</Info>
               </dl>
@@ -224,9 +234,30 @@ async function Trip({
               id: p.id,
               fullName: p.student.fullName,
               rollNo: p.rollNo,
-              className: `${p.student.program} ${p.student.section}`,
+              section: p.student.section,
+              program: p.student.program,
               vehicleId: p.vehicleId,
             }))}
+        />
+      )}
+
+      {tab === "rooms" && (
+        <RoomsPanel
+          tripId={trip.id}
+          editable={admin && trip.status !== "RETURNED" && trip.status !== "CANCELLED"}
+          rooms={trip.rooms.map((r) => ({
+            id: r.id,
+            name: r.name,
+            beds: r.beds,
+            place: r.place,
+            notes: r.notes,
+            occupants: trip.participants
+              .filter((p) => p.roomId === r.id && p.status === "REGISTERED")
+              .map((p) => ({ id: p.id, fullName: p.student.fullName, rollNo: p.rollNo, section: p.student.section })),
+          }))}
+          unassigned={trip.participants
+            .filter((p) => p.roomId == null && p.status === "REGISTERED")
+            .map((p) => ({ id: p.id, fullName: p.student.fullName, rollNo: p.rollNo, section: p.student.section }))}
         />
       )}
 
@@ -240,6 +271,7 @@ type TripData = NonNullable<Awaited<ReturnType<typeof getTrip>>>;
 async function StudentsTab({ trip, admin, fee, when, collegeName }: { trip: TripData; admin: boolean; fee: number; when: string; collegeName: string }) {
   const { programs, sections } = await getClassOptions();
   const vehicleName = new Map(trip.vehicles.map((v) => [v.id, v.name]));
+  const roomName = new Map(trip.rooms.map((r) => [r.id, r.name]));
   const consentBy = trip.consentDeadline ? formatDate(fromDbDate(trip.consentDeadline)) : null;
   const feeBy = trip.feeDeadline ? formatDate(fromDbDate(trip.feeDeadline)) : null;
   const rows: ParticipantView[] = trip.participants.map((p) => {
@@ -269,6 +301,7 @@ async function StudentsTab({ trip, admin, fee, when, collegeName }: { trip: Trip
       medicalNotes: p.medicalNotes,
       emergencyPhone: p.emergencyPhone,
       vehicleName: p.vehicleId ? (vehicleName.get(p.vehicleId) ?? null) : null,
+      roomName: p.roomId ? (roomName.get(p.roomId) ?? null) : null,
       overrideNote: p.overrideNote,
       messages: {
         notice: whatsAppLink(phone, tripParentMessage("notice", { ...base, deadline: null })),
@@ -334,7 +367,8 @@ async function RollCallTab({ trip, admin, fee }: { trip: TripData; admin: boolea
     id: p.id,
     fullName: p.student.fullName,
     rollNo: p.rollNo,
-    className: `${p.student.program} ${p.student.section}`,
+    className: p.student.program,
+    section: p.student.section,
     photoUrl: p.student.photoUrl,
     vehicleId: p.vehicleId,
     vehicleName: p.vehicleId ? (vehicleName.get(p.vehicleId) ?? null) : null,

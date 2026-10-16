@@ -8,6 +8,7 @@ import { TRIP_TYPE_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { isValidYmd, localParts, toDbDate } from "@/lib/time";
+import { compareSections } from "@/lib/sections";
 import { checkEligibility, type Eligibility } from "@/lib/trips";
 
 export type FormState = { ok?: boolean; message?: string } | null;
@@ -31,8 +32,9 @@ export async function saveTrip(_: FormState, fd: FormData): Promise<FormState> {
   const returnTime = get("returnTime");
   const seatsRaw = get("seats");
   const seats = seatsRaw ? Number(seatsRaw) : null;
-  const fee = Number(get("feeAmount") || 0);
-  const feeDeadline = get("feeDeadline");
+  const hasFee = fd.get("hasFee") === "on";
+  const fee = hasFee ? Number(get("feeAmount") || 0) : 0;
+  const feeDeadline = hasFee ? get("feeDeadline") : "";
   const consentDeadline = get("consentDeadline");
   const programs = fd.getAll("programs").map(String).filter(Boolean);
 
@@ -48,7 +50,9 @@ export async function saveTrip(_: FormState, fd: FormData): Promise<FormState> {
   if (seats !== null && (!Number.isInteger(seats) || seats < 1 || seats > 2000)) {
     return { ok: false, message: "Seats must be a whole number (leave empty for no limit)." };
   }
-  if (!Number.isFinite(fee) || fee < 0 || fee > 999_999) return { ok: false, message: "Enter a valid fee." };
+  if (!Number.isFinite(fee) || fee < 0 || fee > 999_999 || (hasFee && fee <= 0)) {
+    return { ok: false, message: "Enter the fee per student, or switch the fee off." };
+  }
   for (const d of [feeDeadline, consentDeadline]) {
     if (d && !isValidYmd(d)) return { ok: false, message: "Check the deadline dates." };
   }
@@ -71,6 +75,7 @@ export async function saveTrip(_: FormState, fd: FormData): Promise<FormState> {
     consentDeadline: consentDeadline ? toDbDate(consentDeadline) : null,
     inChargeName: get("inChargeName").slice(0, 100),
     inChargePhone: get("inChargePhone").slice(0, 20) || null,
+    overnight: fd.get("overnight") === "on",
   };
 
   if (id) {
@@ -184,11 +189,12 @@ export async function addClass(tripId: number, program: string, section: string)
   const ctx = await loadForEnrolment(tripId);
   if (!ctx) return { ok: false, message: "Trip not found." };
   if (ctx.trip.status !== "OPEN") return { ok: false, message: "Registration for this trip is closed." };
+  if (!program && !section) return { ok: false, message: "Choose a section or a program." };
   const students = await prisma.student.findMany({
-    where: { status: "ACTIVE", program, ...(section ? { section } : {}) },
+    where: { status: "ACTIVE", ...(program ? { program } : {}), ...(section ? { section } : {}) },
     orderBy: { rollNo: "asc" },
   });
-  if (students.length === 0) return { ok: false, message: "No active students in that class." };
+  if (students.length === 0) return { ok: false, message: "No active students in that section." };
 
   let added = 0;
   const skipped: string[] = [];
@@ -261,7 +267,7 @@ export async function setParticipantStatus(id: number, status: "REGISTERED" | "W
     const registered = await prisma.tripParticipant.count({ where: { tripId: p.tripId, status: "REGISTERED" } });
     if (p.trip.seats != null && registered >= p.trip.seats) return { ok: false, message: "All seats are filled." };
   }
-  await prisma.tripParticipant.update({ where: { id }, data: { status, ...(status === "WITHDRAWN" ? { vehicleId: null } : {}) } });
+  await prisma.tripParticipant.update({ where: { id }, data: { status, ...(status === "WITHDRAWN" ? { vehicleId: null, roomId: null } : {}) } });
   refresh();
   return { ok: true };
 }
@@ -379,4 +385,179 @@ export async function finishRollCall(tripId: number, phase: "departure" | "retur
   }
   refresh();
   return { ok: true };
+}
+
+/* ---------- Buses by section ---------- */
+
+async function vehicleFree(vehicleId: number, excludeIds: number[] = []) {
+  const v = await prisma.tripVehicle.findUnique({ where: { id: vehicleId } });
+  if (!v) return null;
+  const used = await prisma.tripParticipant.count({
+    where: { vehicleId, status: "REGISTERED", id: { notIn: excludeIds } },
+  });
+  return { vehicle: v, free: v.seats == null ? Infinity : Math.max(0, v.seats - used) };
+}
+
+/**
+ * Puts a whole section on one bus. Students who don't fit are held aside
+ * (no vehicle) until they're sent to an overflow bus.
+ */
+export async function assignSectionToVehicle(tripId: number, section: string, vehicleId: number | null): Promise<FormState> {
+  await admin();
+  const students = await prisma.tripParticipant.findMany({
+    where: { tripId, status: "REGISTERED", student: { section } },
+    orderBy: { rollNo: "asc" },
+  });
+  if (students.length === 0) return { ok: false, message: "No students from that section on this trip." };
+  const ids = students.map((s) => s.id);
+  if (vehicleId === null) {
+    await prisma.tripParticipant.updateMany({ where: { id: { in: ids } }, data: { vehicleId: null } });
+    refresh();
+    return { ok: true, message: `${section}: bus cleared.` };
+  }
+  const slot = await vehicleFree(vehicleId, ids);
+  if (!slot || slot.vehicle.tripId !== tripId) return { ok: false, message: "Vehicle not found." };
+  const fit = Math.min(students.length, slot.free);
+  await prisma.$transaction([
+    prisma.tripParticipant.updateMany({ where: { id: { in: ids.slice(0, fit) } }, data: { vehicleId } }),
+    prisma.tripParticipant.updateMany({ where: { id: { in: ids.slice(fit) } }, data: { vehicleId: null } }),
+  ]);
+  refresh();
+  const held = students.length - fit;
+  return {
+    ok: true,
+    message: `${section}: ${fit} on ${slot.vehicle.name}.${held ? ` ${held} held aside — send them to the overflow bus.` : ""}`,
+  };
+}
+
+/** Sends every student without a seat (held aside) to one bus, as far as seats allow. */
+export async function sendHeldAsideTo(tripId: number, vehicleId: number): Promise<FormState> {
+  await admin();
+  const slot = await vehicleFree(vehicleId);
+  if (!slot || slot.vehicle.tripId !== tripId) return { ok: false, message: "Vehicle not found." };
+  const waiting = await prisma.tripParticipant.findMany({
+    where: { tripId, status: "REGISTERED", vehicleId: null },
+    include: { student: { select: { section: true } } },
+  });
+  waiting.sort((a, b) => compareSections(a.student.section, b.student.section) || a.rollNo.localeCompare(b.rollNo));
+  const fit = Math.min(waiting.length, slot.free);
+  await prisma.tripParticipant.updateMany({ where: { id: { in: waiting.slice(0, fit).map((w) => w.id) } }, data: { vehicleId } });
+  refresh();
+  const left = waiting.length - fit;
+  return { ok: left === 0, message: `${fit} sent to ${slot.vehicle.name}.${left ? ` ${left} still without a seat — add another vehicle.` : ""}` };
+}
+
+/* ---------- Rooms (night stay) ---------- */
+
+export async function saveRoom(
+  tripId: number,
+  input: { id?: number; name: string; beds: string; place: string; notes: string },
+): Promise<FormState> {
+  await admin();
+  const name = input.name.trim();
+  const beds = Number(input.beds);
+  if (!name) return { ok: false, message: "Enter the room name or number." };
+  if (!Number.isInteger(beds) || beds < 1 || beds > 50) return { ok: false, message: "Beds must be 1–50." };
+  if (input.id) {
+    const used = await prisma.tripParticipant.count({ where: { roomId: input.id, status: "REGISTERED" } });
+    if (beds < used) return { ok: false, message: `${used} students are in this room; beds can't be fewer.` };
+  }
+  const data = { name: name.slice(0, 60), beds, place: input.place.trim().slice(0, 100) || null, notes: input.notes.trim().slice(0, 200) || null };
+  if (input.id) await prisma.tripRoom.update({ where: { id: input.id }, data });
+  else await prisma.tripRoom.create({ data: { ...data, tripId } });
+  refresh();
+  return { ok: true };
+}
+
+/** Adds several identical rooms at once, e.g. "Room 1"…"Room 10" with 4 beds each. */
+export async function addRooms(
+  tripId: number,
+  input: { prefix: string; start: number; count: number; beds: number; place: string },
+): Promise<FormState> {
+  await admin();
+  const count = Math.round(Number(input.count));
+  const beds = Math.round(Number(input.beds));
+  const start = Math.round(Number(input.start)) || 1;
+  if (!(count >= 1 && count <= 100)) return { ok: false, message: "Add between 1 and 100 rooms at a time." };
+  if (!(beds >= 1 && beds <= 50)) return { ok: false, message: "Beds must be 1–50." };
+  const prefix = (input.prefix.trim() || "Room").slice(0, 50);
+  await prisma.tripRoom.createMany({
+    data: Array.from({ length: count }, (_, i) => ({
+      tripId,
+      name: `${prefix} ${start + i}`,
+      beds,
+      place: input.place.trim().slice(0, 100) || null,
+    })),
+  });
+  refresh();
+  return { ok: true, message: `Added ${count} rooms.` };
+}
+
+export async function removeRoom(id: number) {
+  await admin();
+  await prisma.tripRoom.delete({ where: { id } });
+  refresh();
+}
+
+export async function assignRoom(participantId: number, roomId: number | null): Promise<FormState> {
+  await admin();
+  if (roomId) {
+    const room = await prisma.tripRoom.findUnique({ where: { id: roomId } });
+    if (!room) return { ok: false, message: "Room not found." };
+    const used = await prisma.tripParticipant.count({ where: { roomId, status: "REGISTERED", id: { not: participantId } } });
+    if (used >= room.beds) return { ok: false, message: `${room.name} is full.` };
+  }
+  await prisma.tripParticipant.update({ where: { id: participantId }, data: { roomId } });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Fills rooms section by section. A room only takes students from one
+ * section, so sections stay together; whoever doesn't fit stays unassigned.
+ */
+export async function autoAssignRooms(tripId: number): Promise<FormState> {
+  await admin();
+  const rooms = await prisma.tripRoom.findMany({
+    where: { tripId },
+    orderBy: { id: "asc" },
+    include: { participants: { where: { status: "REGISTERED" }, include: { student: { select: { section: true } } } } },
+  });
+  if (rooms.length === 0) return { ok: false, message: "Add rooms first." };
+  const state = rooms.map((r) => ({
+    id: r.id,
+    free: r.beds - r.participants.length,
+    section: r.participants[0]?.student.section ?? null,
+  }));
+  const waiting = await prisma.tripParticipant.findMany({
+    where: { tripId, status: "REGISTERED", roomId: null },
+    include: { student: { select: { section: true } } },
+  });
+  waiting.sort((a, b) => compareSections(a.student.section, b.student.section) || a.rollNo.localeCompare(b.rollNo));
+
+  let placed = 0;
+  const updates: { id: number; roomId: number }[] = [];
+  for (const p of waiting) {
+    const section = p.student.section;
+    const room = state.find((r) => r.free > 0 && r.section === section) ?? state.find((r) => r.free > 0 && r.section === null);
+    if (!room) continue;
+    room.section = section;
+    room.free -= 1;
+    updates.push({ id: p.id, roomId: room.id });
+    placed += 1;
+  }
+  await prisma.$transaction(updates.map((u) => prisma.tripParticipant.update({ where: { id: u.id }, data: { roomId: u.roomId } })));
+  refresh();
+  const left = waiting.length - placed;
+  return {
+    ok: left === 0,
+    message: `Placed ${placed} ${placed === 1 ? "student" : "students"}.${left ? ` ${left} without a bed — add rooms or place them by hand.` : ""}`,
+  };
+}
+
+export async function clearRooms(tripId: number): Promise<FormState> {
+  await admin();
+  await prisma.tripParticipant.updateMany({ where: { tripId }, data: { roomId: null } });
+  refresh();
+  return { ok: true, message: "All room assignments cleared." };
 }

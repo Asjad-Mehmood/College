@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ChevronLeft, ChevronRight, Upload, UserX } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, LayoutGrid, List, Upload, UserX } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
 import type { StudentStatus } from "@/generated/prisma/enums";
 import { FilterForm } from "@/components/filter-form";
@@ -21,11 +21,13 @@ import {
   Td,
   Th,
   buttonClass,
+  cx,
 } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
 import { STUDENT_STATUS_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getClassOptions } from "@/lib/records";
+import { compareSections } from "@/lib/sections";
 import { getSettings } from "@/lib/settings";
 import { strikeLevel } from "@/lib/strikes";
 import { localParts, monthStart, nextMonthStart, toDbDate } from "@/lib/time";
@@ -52,7 +54,7 @@ export default function StudentsPage(props: PageProps<"/students">) {
           </div>
         }
       >
-        <StudentList searchParams={props.searchParams} />
+        <Content searchParams={props.searchParams} />
       </Suspense>
     </div>
   );
@@ -79,9 +81,105 @@ async function Header() {
   );
 }
 
-async function StudentList({ searchParams }: { searchParams: PageProps<"/students">["searchParams"] }) {
+type SP = PageProps<"/students">["searchParams"];
+
+async function Content({ searchParams }: { searchParams: SP }) {
   await requireUser(["ADMIN", "PRINCIPAL"]);
   const sp = await searchParams;
+  // Sections overview unless the list is asked for or filtered (old links keep working).
+  const list = sp.view === "all" || ["q", "program", "section", "status", "page"].some((k) => typeof sp[k] === "string");
+  const tabs = [
+    { label: "By section", href: "/students", active: !list, Icon: LayoutGrid },
+    { label: "All students", href: "/students?view=all", active: list, Icon: List },
+  ];
+  return (
+    <>
+      <div className="mb-4 inline-flex rounded-xl border border-line bg-surface p-1 shadow-card" role="tablist">
+        {tabs.map(({ label, href, active, Icon }) => (
+          <Link
+            key={label}
+            href={href}
+            role="tab"
+            aria-selected={active}
+            className={cx(
+              "inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors",
+              active ? "bg-accent-soft text-accent-ink" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+            )}
+          >
+            <Icon className="size-4" aria-hidden />
+            {label}
+          </Link>
+        ))}
+      </div>
+      {list ? <StudentList sp={sp} /> : <SectionsOverview />}
+    </>
+  );
+}
+
+async function SectionsOverview() {
+  const settings = await getSettings();
+  const today = localParts(new Date(), settings.timezone).date;
+  const [groups, lates] = await Promise.all([
+    prisma.student.groupBy({ by: ["section", "program"], where: { status: "ACTIVE" }, _count: { _all: true } }),
+    prisma.$queryRaw<{ section: string; lates: bigint }[]>`
+      SELECT s.section, COUNT(*) AS lates
+      FROM late_records r JOIN students s ON s.roll_no = r.roll_no
+      WHERE r.late_date >= ${toDbDate(monthStart(today))} AND r.late_date <= ${toDbDate(today)}
+      GROUP BY s.section
+    `,
+  ]);
+  const latesBySection = new Map(lates.map((l) => [l.section, Number(l.lates)]));
+  const sections = new Map<string, { count: number; programs: string[] }>();
+  for (const g of groups) {
+    const entry = sections.get(g.section) ?? { count: 0, programs: [] };
+    entry.count += g._count._all;
+    entry.programs.push(g.program);
+    sections.set(g.section, entry);
+  }
+  const list = [...sections.entries()].sort(([a], [b]) => compareSections(a, b));
+  if (list.length === 0) {
+    return (
+      <Card>
+        <EmptyState icon={<UserX className="size-5" />} title="No students yet">
+          Import the student list from Settings to get started.
+        </EmptyState>
+      </Card>
+    );
+  }
+  const total = list.reduce((sum, [, v]) => sum + v.count, 0);
+  return (
+    <div>
+      <p className="mb-3 text-[13px] text-ink-2">
+        <span className="font-semibold text-ink tabular">{total.toLocaleString()}</span> active students in{" "}
+        <span className="font-semibold text-ink tabular">{list.length}</span> sections
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {list.map(([section, info]) => {
+          const late = latesBySection.get(section) ?? 0;
+          return (
+            <Link key={section} href={`/students?section=${encodeURIComponent(section)}`} className="group">
+              <Card className="h-full p-4 transition-colors group-hover:border-line-strong">
+                <p className="text-lg font-semibold tracking-tight group-hover:underline">{section}</p>
+                <p className="mt-0.5 truncate text-[12px] text-muted" title={info.programs.join(", ")}>
+                  {info.programs.join(", ")}
+                </p>
+                <p className="mt-3 text-2xl font-semibold tabular">{info.count}</p>
+                <p className="text-[12px] text-muted">students</p>
+                {late > 0 && (
+                  <p className="mt-2 text-[12px] text-ink-2">
+                    <span className="font-medium tabular">{late}</span> late this month
+                  </p>
+                )}
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+async function StudentList({ sp }: { sp: Awaited<SP> }) {
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).trim() : "");
   const q = str("q").slice(0, 100);
   const program = str("program");
@@ -131,13 +229,23 @@ async function StudentList({ searchParams }: { searchParams: PageProps<"/student
     if (section) qs.set("section", section);
     if (status !== "ACTIVE") qs.set("status", status);
     if (p > 1) qs.set("page", String(p));
+    qs.set("view", "all");
     return `/students?${qs}`;
   };
 
   return (
     <div className="flex flex-col gap-4">
+      {section && !q && !program && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/students" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 hover:text-ink">
+            <ArrowLeft className="size-4" aria-hidden /> All sections
+          </Link>
+          <h2 className="text-lg font-semibold">Section {section}</h2>
+        </div>
+      )}
       <Card className="p-4">
         <FilterForm action="/students" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
+          <input type="hidden" name="view" value="all" />
           <Input type="search" name="q" defaultValue={q} placeholder="Roll no., name, father's name or phone" aria-label="Search students" />
           <Select name="program" defaultValue={program} aria-label="Program">
             <option value="">All programs</option>

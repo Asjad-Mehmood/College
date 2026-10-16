@@ -1,12 +1,23 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Bus, Pencil, Plus, Shuffle, X } from "lucide-react";
-import { Button, Card, CardHeader, FormMessage, Input, cx } from "@/components/ui";
-import { assignVehicle, autoAssign, removeVehicle, saveVehicle, type FormState } from "../actions";
+import { ArrowRight, Bus, Pencil, Plus, Shuffle, X } from "lucide-react";
+import { Button, Card, CardHeader, FormMessage, Input, Pill, cx } from "@/components/ui";
+import { groupBySection } from "@/lib/sections";
+import {
+  assignSectionToVehicle,
+  assignVehicle,
+  autoAssign,
+  removeVehicle,
+  saveVehicle,
+  sendHeldAsideTo,
+  type FormState,
+} from "../actions";
 
 export type VehicleView = { id: number; name: string; driverName: string | null; driverPhone: string | null; seats: number | null; used: number };
-export type RiderView = { id: number; fullName: string; rollNo: string; className: string; vehicleId: number | null };
+export type RiderView = { id: number; fullName: string; rollNo: string; section: string; program: string; vehicleId: number | null };
+
+const selectClass = "h-9 rounded-lg border border-line bg-surface px-2 text-[13px] shadow-card";
 
 export function TransportPanel({
   tripId,
@@ -22,20 +33,24 @@ export function TransportPanel({
   const [editing, setEditing] = useState<number | "new" | null>(vehicles.length === 0 ? "new" : null);
   const [state, setState] = useState<FormState>(null);
   const [pending, start] = useTransition();
-  const unassigned = riders.filter((r) => r.vehicleId == null).length;
+  const run = (fn: () => Promise<FormState>) => start(async () => setState(await fn()));
+  const held = riders.filter((r) => r.vehicleId == null);
+  const sections = groupBySection(riders, (r) => r.section);
+  const vehicleName = new Map(vehicles.map((v) => [v.id, v.name]));
+  const [overflow, setOverflow] = useState<string>(vehicles.at(-1) ? String(vehicles.at(-1)!.id) : "");
 
   return (
     <div className="flex flex-col gap-5">
       <Card>
         <CardHeader
           title="Vehicles"
-          description={`${riders.length} students · ${unassigned} without a seat`}
+          description={`${riders.length} students · ${held.length} without a seat`}
           actions={
             editable &&
             vehicles.length > 0 &&
-            unassigned > 0 && (
-              <Button size="sm" disabled={pending} onClick={() => start(async () => setState(await autoAssign(tripId)))}>
-                <Shuffle className="size-3.5" aria-hidden /> Auto-assign seats
+            held.length > 0 && (
+              <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => autoAssign(tripId))} title="Fill buses in order, ignoring sections">
+                <Shuffle className="size-3.5" aria-hidden /> Quick fill
               </Button>
             )
           }
@@ -55,12 +70,7 @@ export function TransportPanel({
                       <button type="button" onClick={() => setEditing(v.id)} className="rounded-lg p-1 text-muted hover:bg-surface-2" aria-label={`Edit ${v.name}`}>
                         <Pencil className="size-3.5" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => start(() => removeVehicle(v.id))}
-                        className="rounded-lg p-1 text-muted hover:bg-surface-2"
-                        aria-label={`Remove ${v.name}`}
-                      >
+                      <button type="button" onClick={() => start(() => removeVehicle(v.id))} className="rounded-lg p-1 text-muted hover:bg-surface-2" aria-label={`Remove ${v.name}`}>
                         <X className="size-4" />
                       </button>
                     </div>
@@ -73,6 +83,9 @@ export function TransportPanel({
                 <p className={cx("mt-2 text-[13px] font-medium tabular", v.seats != null && v.used >= v.seats ? "text-danger-ink" : "text-ink")}>
                   {v.used}
                   {v.seats != null ? ` / ${v.seats} seats` : " students"}
+                </p>
+                <p className="mt-1 text-[12px] text-muted">
+                  {[...new Set(riders.filter((r) => r.vehicleId === v.id).map((r) => r.section))].join(", ") || "Empty"}
                 </p>
               </div>
             ),
@@ -90,21 +103,113 @@ export function TransportPanel({
               </button>
             ))}
         </div>
-        {state?.message && (
-          <div className="px-4 pb-4">
-            <FormMessage state={state} />
-          </div>
-        )}
       </Card>
+
+      {state?.message && <FormMessage state={state} />}
+
+      {vehicles.length > 0 && sections.length > 0 && (
+        <Card className="overflow-hidden">
+          <CardHeader title="Buses by section" description="Choose one bus for each section. Students who don't fit are held aside for the overflow bus." />
+          <ul className="divide-y divide-line">
+            {sections.map(([section, rows]) => {
+              const counts = new Map<number | null, number>();
+              for (const r of rows) counts.set(r.vehicleId, (counts.get(r.vehicleId) ?? 0) + 1);
+              const main = [...counts.entries()].filter(([id]) => id != null).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+              const heldHere = counts.get(null) ?? 0;
+              return (
+                <li key={section} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">{section}</p>
+                    <p className="text-[12px] text-muted">
+                      {rows.length} {rows.length === 1 ? "student" : "students"} ·{" "}
+                      {[...counts.entries()]
+                        .filter(([id]) => id != null)
+                        .map(([id, n]) => `${n} on ${vehicleName.get(id!)}`)
+                        .join(" · ") || "no bus yet"}
+                    </p>
+                  </div>
+                  {heldHere > 0 && <Pill tone="warning">{heldHere} held aside</Pill>}
+                  {editable ? (
+                    <select
+                      key={`${section}-${main}`}
+                      defaultValue={main ?? ""}
+                      disabled={pending}
+                      aria-label={`Bus for section ${section}`}
+                      onChange={(e) => run(() => assignSectionToVehicle(tripId, section, e.target.value ? Number(e.target.value) : null))}
+                      className={selectClass}
+                    >
+                      <option value="">No bus</option>
+                      {vehicles.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                          {v.seats != null ? ` (${Math.max(0, v.seats - v.used)} free)` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-[13px] text-ink-2">{main ? vehicleName.get(main) : "No bus"}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
+      {vehicles.length > 0 && held.length > 0 && (
+        <Card className="border-warning/50">
+          <CardHeader
+            title={`Held aside (${held.length})`}
+            description="Students who didn't fit their section's bus, or whose section has no bus yet."
+            actions={
+              editable && (
+                <form
+                  className="flex items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (overflow) run(() => sendHeldAsideTo(tripId, Number(overflow)));
+                  }}
+                >
+                  <select value={overflow} onChange={(e) => setOverflow(e.target.value)} aria-label="Overflow bus" className={selectClass}>
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                        {v.seats != null ? ` (${Math.max(0, v.seats - v.used)} free)` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <Button type="submit" size="sm" variant="primary" disabled={pending}>
+                    Send all <ArrowRight className="size-3.5" aria-hidden />
+                  </Button>
+                </form>
+              )
+            }
+          />
+          <div className="flex flex-wrap gap-1.5 p-4">
+            {held.map((r) => (
+              <span key={r.id} className="rounded-full bg-surface-2 px-2.5 py-1 text-[12px]">
+                {r.fullName} <span className="text-muted">· {r.section}</span>
+              </span>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {vehicles.length > 0 && riders.length > 0 && (
         <Card className="overflow-hidden">
-          <CardHeader title="Seat assignment" />
-          <ul className="divide-y divide-line">
-            {riders.map((r) => (
-              <RiderRow key={r.id} rider={r} vehicles={vehicles} editable={editable} />
-            ))}
-          </ul>
+          <CardHeader title="Seat list" description="Move individual students between buses." />
+          {sections.map(([section, rows]) => (
+            <div key={section}>
+              <p className="border-y border-line bg-surface-2/50 px-5 py-1.5 text-[12px] font-semibold text-ink-2">
+                {section} · {rows.length}
+              </p>
+              <ul className="divide-y divide-line">
+                {rows.map((r) => (
+                  <RiderRow key={r.id} rider={r} vehicles={vehicles} editable={editable} />
+                ))}
+              </ul>
+            </div>
+          ))}
         </Card>
       )}
     </div>
@@ -115,11 +220,11 @@ function RiderRow({ rider: r, vehicles, editable }: { rider: RiderView; vehicles
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   return (
-    <li className="flex flex-wrap items-center gap-3 px-5 py-2.5">
+    <li className="flex flex-wrap items-center gap-3 px-5 py-2">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{r.fullName}</p>
         <p className="truncate text-[12px] text-muted">
-          <span className="font-mono">{r.rollNo}</span> · {r.className}
+          <span className="font-mono">{r.rollNo}</span> · {r.program}
         </p>
       </div>
       {error && <span className="text-[12px] text-danger-ink">{error}</span>}
@@ -136,7 +241,7 @@ function RiderRow({ rider: r, vehicles, editable }: { rider: RiderView; vehicles
           aria-label={`Vehicle for ${r.fullName}`}
           className={cx("h-8 rounded-lg border border-line bg-surface px-2 text-[13px]", r.vehicleId == null && "border-warning/60 bg-warning/10")}
         >
-          <option value="">No seat yet</option>
+          <option value="">Held aside</option>
           {vehicles.map((v) => (
             <option key={v.id} value={v.id}>
               {v.name}
@@ -144,7 +249,7 @@ function RiderRow({ rider: r, vehicles, editable }: { rider: RiderView; vehicles
           ))}
         </select>
       ) : (
-        <span className="text-[13px] text-ink-2">{vehicles.find((v) => v.id === r.vehicleId)?.name ?? "No seat yet"}</span>
+        <span className="text-[13px] text-ink-2">{vehicles.find((v) => v.id === r.vehicleId)?.name ?? "Held aside"}</span>
       )}
     </li>
   );

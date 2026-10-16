@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, CheckCircle2, Circle, Phone } from "lucide-react";
 import { Avatar, Button, Card, FormMessage, Input, Pill, Textarea, cx } from "@/components/ui";
+import { groupBySection } from "@/lib/sections";
 import { finishRollCall, markRollCall, type FormState } from "../actions";
 
 export type RollCallRow = {
@@ -10,6 +11,7 @@ export type RollCallRow = {
   fullName: string;
   rollNo: string;
   className: string;
+  section: string;
   photoUrl: string | null;
   vehicleId: number | null;
   vehicleName: string | null;
@@ -130,39 +132,53 @@ export function RollCall({
         {visible.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm text-muted">Nobody in this list.</p>
         ) : (
-          <ul className="divide-y divide-line">
-            {visible.map((r) => {
-              const here = present.has(r.id);
-              return (
-                <li key={r.id} className={cx("flex items-center", here && "bg-good/6")}>
-                  <button
-                    type="button"
-                    onClick={() => toggle(r)}
-                    disabled={!editable}
-                    aria-pressed={here}
-                    className="flex min-h-16 flex-1 items-center gap-3 px-4 py-2 text-left disabled:cursor-default sm:px-5"
-                  >
-                    {here ? <CheckCircle2 className="size-7 shrink-0 text-good" aria-hidden /> : <Circle className="size-7 shrink-0 text-line-strong" aria-hidden />}
-                    <Avatar name={r.fullName} photoUrl={r.photoUrl} size="sm" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-medium">{r.fullName}</span>
-                      <span className="block truncate text-[12px] text-muted">
-                        <span className="font-mono">{r.rollNo}</span> · {r.className}
-                        {r.vehicleName && ` · ${r.vehicleName}`}
-                      </span>
-                    </span>
-                    {phase === "departure" && r.consentMissing && <Pill tone="critical">No consent</Pill>}
-                    {phase === "departure" && r.feeDue && <Pill tone="warning">Fee due</Pill>}
-                  </button>
-                  {!here && phase === "return" && (
-                    <a href={`tel:${r.phone.replace(/[^\d+]/g, "")}`} className="mr-4 inline-flex size-10 items-center justify-center rounded-lg border border-line hover:bg-surface-2" aria-label={`Call ${r.fullName}'s parent`}>
-                      <Phone className="size-4" />
-                    </a>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          groupBySection(visible, (r) => r.section).map(([section, group]) => {
+            const all = expected.filter((r) => r.section === section);
+            const here = all.filter((r) => present.has(r.id)).length;
+            return (
+              <section key={section}>
+                <p className="flex justify-between border-y border-line bg-surface-2/50 px-5 py-1.5 text-[12px] font-semibold text-ink-2">
+                  <span>{section}</span>
+                  <span className={cx("tabular", here === all.length ? "text-success-ink" : "")}>
+                    {here}/{all.length} {verb}
+                  </span>
+                </p>
+                <ul className="divide-y divide-line">
+                  {group.map((r) => {
+                    const isHere = present.has(r.id);
+                    return (
+                      <li key={r.id} className={cx("flex items-center", isHere && "bg-good/6")}>
+                        <button
+                          type="button"
+                          onClick={() => toggle(r)}
+                          disabled={!editable}
+                          aria-pressed={isHere}
+                          className="flex min-h-16 flex-1 items-center gap-3 px-4 py-2 text-left disabled:cursor-default sm:px-5"
+                        >
+                          {isHere ? <CheckCircle2 className="size-7 shrink-0 text-good" aria-hidden /> : <Circle className="size-7 shrink-0 text-line-strong" aria-hidden />}
+                          <Avatar name={r.fullName} photoUrl={r.photoUrl} size="sm" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[15px] font-medium">{r.fullName}</span>
+                            <span className="block truncate text-[12px] text-muted">
+                              <span className="font-mono">{r.rollNo}</span> · {r.className}
+                              {r.vehicleName && ` · ${r.vehicleName}`}
+                            </span>
+                          </span>
+                          {phase === "departure" && r.consentMissing && <Pill tone="critical">No consent</Pill>}
+                          {phase === "departure" && r.feeDue && <Pill tone="warning">Fee due</Pill>}
+                        </button>
+                        {!isHere && phase === "return" && (
+                          <a href={`tel:${r.phone.replace(/[^\d+]/g, "")}`} className="mr-4 inline-flex size-10 items-center justify-center rounded-lg border border-line hover:bg-surface-2" aria-label={`Call ${r.fullName}'s parent`}>
+                            <Phone className="size-4" />
+                          </a>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })
         )}
       </Card>
 

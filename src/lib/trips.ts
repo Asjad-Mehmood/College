@@ -10,6 +10,7 @@ export async function getTrip(id: number) {
     include: {
       staff: { orderBy: { id: "asc" } },
       vehicles: { orderBy: { id: "asc" } },
+      rooms: { orderBy: { id: "asc" } },
       participants: {
         orderBy: [{ student: { program: "asc" } }, { student: { section: "asc" } }, { rollNo: "asc" }],
         include: {

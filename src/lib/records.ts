@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import type { DisciplineAction, LateReason } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { compareSections } from "@/lib/sections";
 import type { Settings } from "@/lib/settings";
 import {
   addDays,
@@ -246,6 +247,6 @@ export async function getClassOptions() {
     orderBy: [{ program: "asc" }, { section: "asc" }],
   });
   const programs = [...new Set(rows.map((r) => r.program))];
-  const sections = [...new Set(rows.map((r) => r.section))].sort();
+  const sections = [...new Set(rows.map((r) => r.section))].sort(compareSections);
   return { programs, sections };
 }

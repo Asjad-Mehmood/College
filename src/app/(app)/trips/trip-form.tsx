@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { BedDouble, Banknote } from "lucide-react";
 import type { TripType } from "@/generated/prisma/enums";
 import { Button, Card, CardHeader, Field, FormMessage, Input, Select, Textarea, buttonClass, cx } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
@@ -26,11 +28,13 @@ export type TripValues = {
   consentDeadline: string;
   inChargeName: string;
   inChargePhone: string;
+  overnight: boolean;
 };
 
 export function TripForm({ values, programs, today }: { values?: TripValues; programs: string[]; today: string }) {
   const [state, onSubmit, pending] = useFormAction(saveTrip, null);
   const v = values;
+  const [hasFee, setHasFee] = useState(v ? Number(v.feeAmount) > 0 : false);
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
       {v?.id && <input type="hidden" name="id" value={v.id} />}
@@ -63,6 +67,14 @@ export function TripForm({ values, programs, today }: { values?: TripValues; pro
 
       <Card>
         <CardHeader title="When & where" />
+        <label className="flex cursor-pointer items-start gap-3 border-b border-line px-5 py-4 has-[:checked]:bg-accent-soft/50">
+          <input type="checkbox" name="overnight" defaultChecked={v?.overnight} className="mt-0.5 size-4.5 accent-[var(--accent)]" />
+          <BedDouble className="mt-0.5 size-4.5 text-muted" aria-hidden />
+          <span>
+            <span className="block text-sm font-medium">Night stay</span>
+            <span className="block text-[12px] text-muted">Adds a Rooms tab to allocate students to rooms and beds.</span>
+          </span>
+        </label>
         <div className="grid gap-4 p-5 sm:grid-cols-4">
           <Field label="Departure date *">
             <Input name="departDate" type="date" required min={v ? undefined : today} defaultValue={v?.departDate} />
@@ -108,15 +120,35 @@ export function TripForm({ values, programs, today }: { values?: TripValues; pro
             <Field label="Seats" hint="Empty = no limit">
               <Input name="seats" type="number" min={1} max={2000} defaultValue={v?.seats} />
             </Field>
-            <Field label="Fee per student (Rs.)" hint="0 if free">
-              <Input name="feeAmount" type="number" min={0} step={50} defaultValue={v?.feeAmount ?? "0"} />
-            </Field>
-            <Field label="Fee deadline">
-              <Input name="feeDeadline" type="date" defaultValue={v?.feeDeadline} />
-            </Field>
             <Field label="Consent deadline">
               <Input name="consentDeadline" type="date" defaultValue={v?.consentDeadline} />
             </Field>
+          </div>
+          <div className="rounded-xl border border-line">
+            <label className="flex cursor-pointer items-start gap-3 px-4 py-3">
+              <input
+                type="checkbox"
+                name="hasFee"
+                checked={hasFee}
+                onChange={(e) => setHasFee(e.target.checked)}
+                className="mt-0.5 size-4.5 accent-[var(--accent)]"
+              />
+              <Banknote className="mt-0.5 size-4.5 text-muted" aria-hidden />
+              <span>
+                <span className="block text-sm font-medium">This trip has a fee</span>
+                <span className="block text-[12px] text-muted">Leave off for trips the college pays for — no fee tracking at all.</span>
+              </span>
+            </label>
+            {hasFee && (
+              <div className="grid gap-4 border-t border-line p-4 sm:grid-cols-2">
+                <Field label="Fee per student (Rs.) *">
+                  <Input name="feeAmount" type="number" min={1} step={50} required defaultValue={v && Number(v.feeAmount) > 0 ? v.feeAmount : ""} />
+                </Field>
+                <Field label="Fee deadline">
+                  <Input name="feeDeadline" type="date" defaultValue={v?.feeDeadline} />
+                </Field>
+              </div>
+            )}
           </div>
         </div>
       </Card>
