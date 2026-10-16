@@ -16,6 +16,7 @@ export type ViolationFilters = {
   status: CaseStatus | "";
   program: string;
   section: string;
+  shift: "MORNING" | "EVENING" | "";
   fines: "unpaid" | "";
   page: number;
 };
@@ -44,6 +45,7 @@ export function parseViolationFilters(params: Params): ViolationFilters {
     status: status === "OPEN" || status === "CLOSED" ? status : "",
     program: one(params, "program"),
     section: one(params, "section"),
+    shift: one(params, "shift") === "MORNING" ? "MORNING" : one(params, "shift") === "EVENING" ? "EVENING" : "",
     fines: one(params, "fines") === "unpaid" ? "unpaid" : "",
     page: Math.max(1, Number.parseInt(one(params, "page"), 10) || 1),
   };
@@ -63,12 +65,13 @@ export function violationFiltersToQuery(f: ViolationFilters, overrides: Partial<
   if (m.status) qs.set("status", m.status);
   if (m.program) qs.set("program", m.program);
   if (m.section) qs.set("section", m.section);
+  if (m.shift) qs.set("shift", m.shift);
   if (m.fines) qs.set("fines", m.fines);
   if (m.page > 1) qs.set("page", String(m.page));
   return qs.toString();
 }
 
-export function violationWhere(f: ViolationFilters, settings: Settings) {
+export function violationWhere(f: ViolationFilters, settings: Settings, eveningSections: string[] = []) {
   const range = resolveDateRange(f, settings.timezone);
   const digits = f.q.replace(/\D/g, "");
   const where: Prisma.ViolationWhereInput = {
@@ -82,9 +85,13 @@ export function violationWhere(f: ViolationFilters, settings: Settings) {
     ...(f.severity && { severity: f.severity }),
     ...(f.status && { status: f.status }),
     ...(f.fines && { fineAmount: { gt: 0 }, finePaid: false }),
-    student: {
-      ...(f.program && { program: f.program }),
-      ...(f.section && { section: f.section }),
+    ...(f.shift === "EVENING" && { student: { section: { in: eveningSections } } }),
+    ...(f.shift === "MORNING" && { NOT: { student: { section: { in: eveningSections } } } }),
+    AND: [
+      {
+        student: {
+          ...(f.program && { program: f.program }),
+          ...(f.section && { section: f.section }),
       ...(f.q && {
         OR: [
           { rollNo: { contains: f.q, mode: "insensitive" } },
@@ -93,7 +100,9 @@ export function violationWhere(f: ViolationFilters, settings: Settings) {
           ...(digits.length >= 4 ? [{ parentPhone: { contains: digits } }] : []),
         ],
       }),
-    },
+        },
+      },
+    ],
   };
   return { where, range };
 }
@@ -103,7 +112,10 @@ export async function queryViolations(
   settings: Settings,
   opts: { limit?: number; offset?: number } = {},
 ) {
-  const { where, range } = violationWhere(f, settings);
+  const eveningSections = f.shift
+    ? (await prisma.section.findMany({ where: { shift: "EVENING" }, select: { name: true } })).map((x) => x.name)
+    : [];
+  const { where, range } = violationWhere(f, settings, eveningSections);
   const [rows, total] = await Promise.all([
     prisma.violation.findMany({
       where,

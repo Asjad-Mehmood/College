@@ -53,8 +53,9 @@ async function GateHeader() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Gate check-in</h1>
         <p className="mt-1 text-sm text-ink-2">
-          {formatDate(today, { weekday: true })} · College starts{" "}
-          <span className="font-medium text-ink">{formatMinutes(settings.startMinutes)}</span> ·{" "}
+          {formatDate(today, { weekday: true })} · Morning starts{" "}
+          <span className="font-medium text-ink">{formatMinutes(settings.shifts.MORNING.startMinutes)}</span> · Evening starts{" "}
+          <span className="font-medium text-ink">{formatMinutes(settings.shifts.EVENING.startMinutes)}</span> ·{" "}
           {settings.gracePeriodMins} min grace · {settings.schedule === "WINTER" ? "Winter" : "Summer"} timing
         </p>
       </div>

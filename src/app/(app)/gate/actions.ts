@@ -6,7 +6,7 @@ import type { DisciplineAction, LateReason } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth";
 import { parentLateMessage, smsLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
-import { getSettings } from "@/lib/settings";
+import { SHIFT_LABELS, getSettings, shiftStart, type ShiftKey } from "@/lib/settings";
 import { strikeLevel, type StrikeLevel } from "@/lib/strikes";
 import { resolveRoll } from "@/lib/student-lookup";
 import {
@@ -43,6 +43,8 @@ export type LookupResult =
       minutesLate: number;
       withinGrace: boolean;
       startTime: string;
+      /** "Morning" or "Evening" */
+      shift: string;
       defaultFine: number;
       /** Latest late arrivals of this student (newest first) */
       recent: { date: string; minutesLate: number }[];
@@ -63,15 +65,21 @@ function normalizeRoll(raw: string) {
   return raw.trim().toUpperCase().replace(/\s+/g, "");
 }
 
-function arrival(settings: Awaited<ReturnType<typeof getSettings>>) {
+function arrival(settings: Awaited<ReturnType<typeof getSettings>>, shift: ShiftKey) {
   const now = new Date();
   const local = localParts(now, settings.timezone);
   return {
     now,
     today: local.date,
     arrivalTime: formatMinutes(local.minutes),
-    minutesLate: local.minutes - settings.startMinutes,
+    minutesLate: local.minutes - shiftStart(settings, shift).startMinutes,
   };
+}
+
+/** A student's shift comes from their section (morning if the section isn't set up). */
+async function shiftOf(section: string): Promise<ShiftKey> {
+  const row = await prisma.section.findUnique({ where: { name: section }, select: { shift: true } });
+  return row?.shift ?? "MORNING";
 }
 
 export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
@@ -95,7 +103,8 @@ export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
     return { ok: false, error: `No student found with roll number “${rollNo}”.`, suggestions };
   }
 
-  const { today, arrivalTime, minutesLate } = arrival(settings);
+  const shift = await shiftOf(student.section);
+  const { today, arrivalTime, minutesLate } = arrival(settings, shift);
   const [monthCount, todayRecord, recentRows] = await Promise.all([
     prisma.lateRecord.count({
       where: {
@@ -131,7 +140,8 @@ export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
     arrivalTime,
     minutesLate,
     withinGrace: minutesLate <= settings.gracePeriodMins,
-    startTime: formatMinutes(settings.startMinutes),
+    startTime: formatMinutes(shiftStart(settings, shift).startMinutes),
+    shift: SHIFT_LABELS[shift],
     defaultFine: settings.defaultFineAmount,
     recent: recentRows.map((r) => ({ date: fromDbDate(r.lateDate), minutesLate: r.minutesLate })),
   };
@@ -202,7 +212,7 @@ export async function logLateArrival(input: {
   }
 
   // Time is always taken on the server, never trusted from the device.
-  const { now, today, arrivalTime, minutesLate } = arrival(settings);
+  const { now, today, arrivalTime, minutesLate } = arrival(settings, await shiftOf(student.section));
   if (minutesLate <= settings.gracePeriodMins) {
     return {
       ok: false,

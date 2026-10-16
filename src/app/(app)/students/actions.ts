@@ -68,16 +68,17 @@ const YEARS: StudyYear[] = ["FIRST", "SECOND"];
 function sectionInput(fd: FormData) {
   const name = String(fd.get("name") ?? "").trim().replace(/\s+/g, " ").slice(0, 20);
   const y = String(fd.get("year") ?? "");
-  return { name, year: YEARS.includes(y as StudyYear) ? (y as StudyYear) : null };
+  const shift = fd.get("shift") === "EVENING" ? ("EVENING" as const) : ("MORNING" as const);
+  return { name, year: YEARS.includes(y as StudyYear) ? (y as StudyYear) : null, shift };
 }
 
 export async function createSection(_: StudentFormState, fd: FormData): Promise<StudentFormState> {
   await requireUser(["ADMIN"]);
-  const { name, year } = sectionInput(fd);
+  const { name, year, shift } = sectionInput(fd);
   if (!name) return { ok: false, message: "Enter the section name, e.g. CD1." };
   if (!year) return { ok: false, message: "Choose the year (1st or 2nd)." };
   try {
-    await prisma.section.create({ data: { name, year } });
+    await prisma.section.create({ data: { name, year, shift } });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { ok: false, message: `Section ${name} already exists.` };
     throw e;
@@ -89,13 +90,13 @@ export async function createSection(_: StudentFormState, fd: FormData): Promise<
 /** Renames a section (moving its students with it) and/or changes its year. */
 export async function updateSection(id: number, fd: FormData): Promise<StudentFormState> {
   await requireUser(["ADMIN"]);
-  const { name, year } = sectionInput(fd);
+  const { name, year, shift } = sectionInput(fd);
   const current = await prisma.section.findUnique({ where: { id } });
   if (!current) return { ok: false, message: "Section not found." };
   if (!name) return { ok: false, message: "Enter the section name." };
   try {
     await prisma.$transaction([
-      prisma.section.update({ where: { id }, data: { name, year } }),
+      prisma.section.update({ where: { id }, data: { name, year, shift } }),
       ...(name !== current.name ? [prisma.student.updateMany({ where: { section: current.name }, data: { section: name } })] : []),
     ]);
   } catch (e) {

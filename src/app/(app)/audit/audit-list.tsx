@@ -180,7 +180,7 @@ function ProfileSidebar({ a }: { a: StudentAudit }) {
       <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 text-[13px] lg:grid-cols-1">
         <Detail label="Roll number" value={<span className="font-mono">{s.rollNo}</span>} />
         <Detail label="Program" value={s.program} />
-        <Detail label="Section" value={`${s.section}${s.sectionYear ? ` · ${s.sectionYear}` : ""}`} />
+        <Detail label="Section" value={`${s.section}${s.sectionYear ? ` · ${s.sectionYear}` : ""} · ${s.shift} shift`} />
         <Detail label="Parent phone" value={<span className="font-mono">{s.parentPhone}</span>} />
         <Detail label="Student phone" value={s.studentPhone ? <span className="font-mono">{s.studentPhone}</span> : "—"} />
         <Detail label="On record since" value={formatDate(s.addedOn)} />

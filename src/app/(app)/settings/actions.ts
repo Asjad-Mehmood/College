@@ -24,13 +24,15 @@ export async function saveSettings(_: SettingsState, formData: FormData): Promis
   const timezone = String(formData.get("timezone") ?? "").trim();
   const summerStartTime = String(formData.get("summerStartTime") ?? "");
   const winterStartTime = String(formData.get("winterStartTime") ?? "");
+  const eveningSummerStartTime = String(formData.get("eveningSummerStartTime") ?? "");
+  const eveningWinterStartTime = String(formData.get("eveningWinterStartTime") ?? "");
   const gracePeriodMins = int(formData.get("gracePeriodMins"), 0, 120);
   const habitualThreshold = int(formData.get("habitualThreshold"), 2, 31);
   const criticalThreshold = int(formData.get("criticalThreshold"), 2, 31);
   const defaultFineAmount = int(formData.get("defaultFineAmount"), 0, 100_000);
 
   if (!collegeName) return { ok: false, message: "College name is required." };
-  if (!TIME.test(summerStartTime) || !TIME.test(winterStartTime)) {
+  if (![summerStartTime, winterStartTime, eveningSummerStartTime, eveningWinterStartTime].every((t) => TIME.test(t))) {
     return { ok: false, message: "Start times must be in HH:MM format." };
   }
   try {
@@ -51,6 +53,8 @@ export async function saveSettings(_: SettingsState, formData: FormData): Promis
     timezone,
     summerStartTime,
     winterStartTime,
+    eveningSummerStartTime,
+    eveningWinterStartTime,
     gracePeriodMins,
     habitualThreshold,
     criticalThreshold,

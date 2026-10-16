@@ -468,7 +468,7 @@ function StudentPreview({ data }: { data: Found }) {
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
             <Info label="Roll no." value={<span className="font-mono">{s.rollNo}</span>} />
-            <Info label="Class" value={`${s.program} · ${s.section}`} />
+            <Info label="Class" value={`${s.program} · ${s.section}`} sub={`${data.shift} shift`} />
             <Info label="Arrived" value={data.arrivalTime} />
             <Info
               label="Late by"

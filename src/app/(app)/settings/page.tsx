@@ -46,10 +46,16 @@ async function SettingsContent() {
         <Card>
           <CardHeader
             title="College timing"
-            description="Switch between summer and winter start times in one click. Applies to new entries immediately."
+            description="Switch between summer and winter timing in one click, for both shifts. Applies to new entries immediately."
           />
           <div className="p-5">
-            <ScheduleToggle schedule={settings.schedule} summer={settings.summerStartTime} winter={settings.winterStartTime} />
+            <ScheduleToggle
+              schedule={settings.schedule}
+              summer={settings.summerStartTime}
+              winter={settings.winterStartTime}
+              eveningSummer={settings.eveningSummerStartTime}
+              eveningWinter={settings.eveningWinterStartTime}
+            />
           </div>
         </Card>
 
@@ -64,6 +70,8 @@ async function SettingsContent() {
                 schedule: settings.schedule,
                 summerStartTime: settings.summerStartTime,
                 winterStartTime: settings.winterStartTime,
+                eveningSummerStartTime: settings.eveningSummerStartTime,
+                eveningWinterStartTime: settings.eveningWinterStartTime,
                 gracePeriodMins: settings.gracePeriodMins,
                 habitualThreshold: settings.habitualThreshold,
                 criticalThreshold: settings.criticalThreshold,

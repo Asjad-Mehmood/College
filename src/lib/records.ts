@@ -34,6 +34,7 @@ export type RecordFilters = {
   to: string;
   program: string;
   section: string;
+  shift: "MORNING" | "EVENING" | "";
   strike: StrikeFilter | "";
   fines: "unpaid" | "";
   habitual: boolean;
@@ -59,6 +60,7 @@ export function parseRecordFilters(params: Params): RecordFilters {
     to: one(params, "to"),
     program: one(params, "program"),
     section: one(params, "section"),
+    shift: one(params, "shift") === "MORNING" ? "MORNING" : one(params, "shift") === "EVENING" ? "EVENING" : "",
     strike: strike === "low" || strike === "habitual" || strike === "critical" ? strike : "",
     fines: one(params, "fines") === "unpaid" ? "unpaid" : "",
     habitual: one(params, "habitual") === "1",
@@ -78,6 +80,7 @@ export function filtersToQuery(f: RecordFilters, overrides: Partial<RecordFilter
   }
   if (merged.program) qs.set("program", merged.program);
   if (merged.section) qs.set("section", merged.section);
+  if (merged.shift) qs.set("shift", merged.shift);
   if (merged.strike) qs.set("strike", merged.strike);
   if (merged.fines) qs.set("fines", merged.fines);
   if (merged.habitual) qs.set("habitual", "1");
@@ -192,6 +195,9 @@ export async function queryLedger(
   }
   if (f.program) where.push(Prisma.sql`s.program = ${f.program}`);
   if (f.section) where.push(Prisma.sql`s.section = ${f.section}`);
+  // Shift comes from the section; sections not set up count as morning.
+  if (f.shift === "EVENING") where.push(Prisma.sql`s.section IN (SELECT name FROM sections WHERE shift = 'EVENING')`);
+  if (f.shift === "MORNING") where.push(Prisma.sql`s.section NOT IN (SELECT name FROM sections WHERE shift = 'EVENING')`);
   if (f.strike === "low") where.push(Prisma.sql`c.strike_no < ${settings.habitualThreshold}`);
   if (f.strike === "habitual")
     where.push(Prisma.sql`c.strike_no >= ${settings.habitualThreshold} AND c.strike_no < ${settings.criticalThreshold}`);

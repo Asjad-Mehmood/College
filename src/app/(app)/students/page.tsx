@@ -28,6 +28,7 @@ import { STUDENT_STATUS_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getClassOptions } from "@/lib/records";
 import { YEAR_LABELS, getSectionOptions } from "@/lib/section-options";
+import { SHIFT_LABELS } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Students" };
 
@@ -116,14 +117,17 @@ async function Content({ searchParams }: { searchParams: SP }) {
           </Link>
         ))}
       </div>
-      {list ? <StudentList sp={sp} /> : <SectionsOverview year={sp.year === "FIRST" || sp.year === "SECOND" ? sp.year : ""} />}
+      {list ? <StudentList sp={sp} /> : <SectionsOverview
+          year={sp.year === "FIRST" || sp.year === "SECOND" ? sp.year : ""}
+          shift={sp.shift === "MORNING" || sp.shift === "EVENING" ? sp.shift : ""}
+        />}
     </>
   );
 }
 
-async function SectionsOverview({ year }: { year: string }) {
+async function SectionsOverview({ year, shift }: { year: string; shift: string }) {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
-  const [sections, groups, inactive] = await Promise.all([
+  const [allSections, groups, inactive] = await Promise.all([
     getSectionOptions(),
     prisma.student.groupBy({ by: ["section", "program"], where: { status: "ACTIVE" }, _count: { _all: true } }),
     prisma.student.groupBy({ by: ["section"], where: { status: { not: "ACTIVE" } }, _count: { _all: true } }),
@@ -136,6 +140,8 @@ async function SectionsOverview({ year }: { year: string }) {
     info.set(g.section, entry);
   }
   const inactiveBy = new Map(inactive.map((g) => [g.section, g._count._all]));
+  const sections = shift ? allSections.filter((x) => x.shift === shift) : allSections;
+  const hasEvening = allSections.some((x) => x.shift === "EVENING");
   const countOf = (name: string) => info.get(name)?.count ?? 0;
   const total = sections.reduce((sum, x) => sum + countOf(x.name), 0);
   const firstYear = sections.filter((x) => x.year === "FIRST").reduce((sum, x) => sum + countOf(x.name), 0);
@@ -143,10 +149,23 @@ async function SectionsOverview({ year }: { year: string }) {
   const largest = Math.max(1, ...sections.map((x) => countOf(x.name)));
   const avg = sections.length ? Math.round(total / sections.length) : 0;
 
+  const link = (o: { year?: string; shift?: string }) => {
+    const qs = new URLSearchParams();
+    const y = o.year ?? year;
+    const sh = o.shift ?? shift;
+    if (y) qs.set("year", y);
+    if (sh) qs.set("shift", sh);
+    return qs.size ? `/students?${qs}` : "/students";
+  };
   const yearTabs = [
     { key: "", label: "All years" },
     { key: "FIRST", label: "1st year" },
     { key: "SECOND", label: "2nd year" },
+  ];
+  const shiftTabs = [
+    { key: "", label: "Both shifts" },
+    { key: "MORNING", label: "Morning" },
+    { key: "EVENING", label: "Evening" },
   ];
   const groupsByYear = [
     { key: "FIRST" as const, title: "1st year" },
@@ -164,7 +183,7 @@ async function SectionsOverview({ year }: { year: string }) {
     { label: "Average class size", value: avg.toLocaleString(), sub: `${sections.filter((x) => !countOf(x.name)).length} empty sections` },
   ];
 
-  if (sections.length === 0) {
+  if (allSections.length === 0) {
     return (
       <Card>
         <EmptyState icon={<UserX className="size-5" />} title="No sections yet">
@@ -193,11 +212,28 @@ async function SectionsOverview({ year }: { year: string }) {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+        {(hasEvening || shift) && (
+          <div className="inline-flex gap-1 rounded-xl bg-surface-2 p-1">
+            {shiftTabs.map((t) => (
+              <Link
+                key={t.key}
+                href={link({ shift: t.key })}
+                className={cx(
+                  "rounded-lg px-3 py-1 text-[13px] font-medium",
+                  shift === t.key ? "bg-surface text-ink shadow-card" : "text-ink-2 hover:text-ink",
+                )}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </div>
+        )}
         <div className="inline-flex gap-1 rounded-xl bg-surface-2 p-1">
           {yearTabs.map((t) => (
             <Link
               key={t.key}
-              href={t.key ? `/students?year=${t.key}` : "/students"}
+              href={link({ year: t.key })}
               className={cx(
                 "rounded-lg px-3 py-1 text-[13px] font-medium",
                 year === t.key ? "bg-surface text-ink shadow-card" : "text-ink-2 hover:text-ink",
@@ -206,6 +242,7 @@ async function SectionsOverview({ year }: { year: string }) {
               {t.label}
             </Link>
           ))}
+        </div>
         </div>
         <ButtonLink size="sm" href="/api/export/students">
           <Download className="size-4" aria-hidden /> Export all (Excel)
@@ -238,7 +275,9 @@ async function SectionsOverview({ year }: { year: string }) {
                           </span>
                           <div>
                             <p className="font-semibold tracking-tight group-hover:underline">Section {sec.name}</p>
-                            <p className="text-[12px] text-muted">{sec.year ? YEAR_LABELS[sec.year] : "Year not set"}</p>
+                            <p className="text-[12px] text-muted">
+                              {sec.year ? YEAR_LABELS[sec.year] : "Year not set"} · {SHIFT_LABELS[sec.shift]}
+                            </p>
                           </div>
                         </div>
                         <ChevronRight className="size-4 text-muted transition-transform group-hover:translate-x-0.5" aria-hidden />
@@ -474,7 +513,7 @@ async function SectionHeader({
   admin,
 }: {
   section: string;
-  sectionRow: { id: number; name: string; year: "FIRST" | "SECOND" | null } | null;
+  sectionRow: { id: number; name: string; year: "FIRST" | "SECOND" | null; shift: "MORNING" | "EVENING" } | null;
   sectionOpts: { name: string; year: "FIRST" | "SECOND" | null }[];
   programs: string[];
   program: string;
@@ -535,6 +574,7 @@ async function SectionHeader({
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-2xl font-semibold tracking-tight">Section {section}</h2>
                 <Pill tone={sectionRow?.year ? "accent" : "neutral"}>{sectionRow?.year ? YEAR_LABELS[sectionRow.year] : "Year not set"}</Pill>
+                {sectionRow && <Pill tone={sectionRow.shift === "EVENING" ? "warning" : "neutral"}>{SHIFT_LABELS[sectionRow.shift]} shift</Pill>}
               </div>
               <p className="mt-0.5 text-[13px] text-ink-2">
                 <span className="font-semibold text-ink tabular">{active}</span> active students
@@ -551,7 +591,7 @@ async function SectionHeader({
             <a href={`/api/export/students?section=${enc}${status !== "ACTIVE" ? `&status=${status}` : ""}`} className={buttonClass("secondary")}>
               <Download className="size-4" aria-hidden /> Excel
             </a>
-            {admin && sectionRow && <SectionSettings id={sectionRow.id} name={sectionRow.name} year={sectionRow.year} students={all} />}
+            {admin && sectionRow && <SectionSettings id={sectionRow.id} name={sectionRow.name} year={sectionRow.year} shift={sectionRow.shift} students={all} />}
           </div>
         </div>
 

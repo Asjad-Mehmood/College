@@ -18,7 +18,7 @@ export type StudentFields = {
   status: string;
 };
 
-export function StudentDialog({ student, programs, sections, defaultSection }: { defaultSection?: string; student?: StudentFields; programs: string[]; sections: { name: string; year: "FIRST" | "SECOND" | null }[] }) {
+export function StudentDialog({ student, programs, sections, defaultSection }: { defaultSection?: string; student?: StudentFields; programs: string[]; sections: { name: string; year: "FIRST" | "SECOND" | null; shift?: "MORNING" | "EVENING" }[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const editing = !!student;
   const [state, onSubmit, pending] = useFormAction(saveStudent, null, { resetOnSuccess: !editing });
@@ -84,6 +84,7 @@ export function StudentDialog({ student, programs, sections, defaultSection }: {
                       {list.map((x) => (
                         <option key={x.name} value={x.name}>
                           {x.name}
+                          {x.shift === "EVENING" ? " (evening)" : ""}
                         </option>
                       ))}
                     </optgroup>

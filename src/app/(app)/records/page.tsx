@@ -427,7 +427,7 @@ function Filters({
     <Card className="no-print p-4">
       <FilterForm action="/records" className="flex flex-col gap-3">
         <input type="hidden" name="view" value="search" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))]">
           <Input
             type="search"
             name="q"
@@ -453,6 +453,11 @@ function Filters({
             {sections.map((s) => (
               <option key={s}>{s}</option>
             ))}
+          </Select>
+          <Select name="shift" defaultValue={filters.shift} aria-label="Shift">
+            <option value="">Both shifts</option>
+            <option value="MORNING">Morning shift</option>
+            <option value="EVENING">Evening shift</option>
           </Select>
           <Select name="strike" defaultValue={filters.strike} aria-label="Strike level">
             <option value="">Any strike</option>

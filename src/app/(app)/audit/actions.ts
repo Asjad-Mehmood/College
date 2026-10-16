@@ -24,6 +24,7 @@ export type StudentAudit = {
     program: string;
     section: string;
     sectionYear: string | null;
+    shift: string;
     parentPhone: string;
     studentPhone: string | null;
     photoUrl: string | null;
@@ -127,7 +128,7 @@ export async function getStudentAudit(rollNo: string): Promise<StudentAudit | nu
     },
   });
   if (!s) return null;
-  const sectionRow = await prisma.section.findUnique({ where: { name: s.section }, select: { year: true } });
+  const sectionRow = await prisma.section.findUnique({ where: { name: s.section }, select: { year: true, shift: true } });
 
   const today = localParts(new Date(), settings.timezone).date;
   const thisMonth = today.slice(0, 7);
@@ -223,6 +224,7 @@ export async function getStudentAudit(rollNo: string): Promise<StudentAudit | nu
       fatherName: s.fatherName,
       program: s.program,
       section: s.section,
+      shift: sectionRow?.shift === "EVENING" ? "Evening" : "Morning",
       sectionYear: sectionRow?.year === "FIRST" ? "1st year" : sectionRow?.year === "SECOND" ? "2nd year" : null,
       parentPhone: s.parentPhone,
       studentPhone: s.studentPhone,

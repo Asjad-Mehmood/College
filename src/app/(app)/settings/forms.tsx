@@ -24,6 +24,8 @@ export type SettingsValues = {
   schedule: "SUMMER" | "WINTER";
   summerStartTime: string;
   winterStartTime: string;
+  eveningSummerStartTime: string;
+  eveningWinterStartTime: string;
   gracePeriodMins: number;
   habitualThreshold: number;
   criticalThreshold: number;
@@ -32,11 +34,23 @@ export type SettingsValues = {
 
 const TIMEZONES = ["Asia/Karachi", "Asia/Kolkata", "Asia/Dhaka", "Asia/Dubai", "Asia/Riyadh", "Europe/London", "UTC"];
 
-export function ScheduleToggle({ schedule, summer, winter }: { schedule: "SUMMER" | "WINTER"; summer: string; winter: string }) {
+export function ScheduleToggle({
+  schedule,
+  summer,
+  winter,
+  eveningSummer,
+  eveningWinter,
+}: {
+  schedule: "SUMMER" | "WINTER";
+  summer: string;
+  winter: string;
+  eveningSummer: string;
+  eveningWinter: string;
+}) {
   const [pending, start] = useTransition();
   const options = [
-    { value: "SUMMER" as const, label: "Summer", time: summer, Icon: Sun },
-    { value: "WINTER" as const, label: "Winter", time: winter, Icon: Snowflake },
+    { value: "SUMMER" as const, label: "Summer", time: `Morning ${summer} · Evening ${eveningSummer}`, Icon: Sun },
+    { value: "WINTER" as const, label: "Winter", time: `Morning ${winter} · Evening ${eveningWinter}`, Icon: Snowflake },
   ];
   return (
     <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Active timing schedule">
@@ -58,7 +72,7 @@ export function ScheduleToggle({ schedule, summer, winter }: { schedule: "SUMMER
             <Icon className={cx("size-5", active ? "text-accent-ink" : "text-muted")} aria-hidden />
             <span>
               <span className={cx("block text-sm font-semibold", active && "text-accent-ink")}>{label} timing</span>
-              <span className="block text-[13px] text-muted">Starts {time}</span>
+              <span className="block text-[13px] text-muted">{time}</span>
             </span>
             {active && <span className="ml-auto"><Pill tone="accent">Active</Pill></span>}
           </button>
@@ -79,12 +93,24 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
         <Field label="Address" hint="Printed on the warning letter letterhead" className="sm:col-span-2">
           <Input name="collegeAddress" maxLength={255} defaultValue={values.collegeAddress} />
         </Field>
-        <Field label="Summer start time">
-          <Input name="summerStartTime" type="time" required defaultValue={values.summerStartTime} />
-        </Field>
-        <Field label="Winter start time">
-          <Input name="winterStartTime" type="time" required defaultValue={values.winterStartTime} />
-        </Field>
+        <div className="grid gap-3 rounded-xl border border-line p-4 sm:col-span-2 sm:grid-cols-2">
+          <p className="text-sm font-semibold sm:col-span-2">Morning shift</p>
+          <Field label="Summer start time">
+            <Input name="summerStartTime" type="time" required defaultValue={values.summerStartTime} />
+          </Field>
+          <Field label="Winter start time">
+            <Input name="winterStartTime" type="time" required defaultValue={values.winterStartTime} />
+          </Field>
+        </div>
+        <div className="grid gap-3 rounded-xl border border-line p-4 sm:col-span-2 sm:grid-cols-2">
+          <p className="text-sm font-semibold sm:col-span-2">Evening shift</p>
+          <Field label="Summer start time">
+            <Input name="eveningSummerStartTime" type="time" required defaultValue={values.eveningSummerStartTime} />
+          </Field>
+          <Field label="Winter start time">
+            <Input name="eveningWinterStartTime" type="time" required defaultValue={values.eveningWinterStartTime} />
+          </Field>
+        </div>
         <Field label="Grace period (minutes)" hint="Arrivals within this window are not counted as late">
           <Input name="gracePeriodMins" type="number" min={0} max={120} required defaultValue={values.gracePeriodMins} />
         </Field>

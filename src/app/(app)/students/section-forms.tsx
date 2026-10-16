@@ -52,6 +52,12 @@ export function NewSectionDialog() {
                 <option value="SECOND">2nd year</option>
               </Select>
             </Field>
+            <Field label="Shift *" hint="Sets the college start time for students in this section" className="sm:col-span-2">
+              <Select name="shift" required defaultValue="MORNING">
+                <option value="MORNING">Morning</option>
+                <option value="EVENING">Evening</option>
+              </Select>
+            </Field>
             <div className="sm:col-span-2">
               <FormMessage state={state} />
             </div>
@@ -71,7 +77,19 @@ export function NewSectionDialog() {
 }
 
 /** Rename / change year / delete, shown on a section's page. */
-export function SectionSettings({ id, name, year, students }: { id: number; name: string; year: "FIRST" | "SECOND" | null; students: number }) {
+export function SectionSettings({
+  id,
+  name,
+  year,
+  shift,
+  students,
+}: {
+  id: number;
+  name: string;
+  year: "FIRST" | "SECOND" | null;
+  shift: "MORNING" | "EVENING";
+  students: number;
+}) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<StudentFormState>(null);
   const [pending, start] = useTransition();
@@ -100,6 +118,10 @@ export function SectionSettings({ id, name, year, students }: { id: number; name
         <option value="">Year not set</option>
         <option value="FIRST">1st year</option>
         <option value="SECOND">2nd year</option>
+      </Select>
+      <Select name="shift" defaultValue={shift} aria-label="Shift" className="h-9 w-auto">
+        <option value="MORNING">Morning shift</option>
+        <option value="EVENING">Evening shift</option>
       </Select>
       <Button type="submit" size="sm" variant="primary" disabled={pending}>
         Save

@@ -116,6 +116,7 @@ async function Dashboard() {
     meetings,
     trendRows,
     programRows,
+    eveningToday,
   ] = await Promise.all([
     prisma.lateRecord.count({ where: { lateDate: toDbDate(today) } }),
     prisma.lateRecord.count({ where: { lateDate: toDbDate(yesterday) } }),
@@ -148,7 +149,12 @@ async function Dashboard() {
       GROUP BY s.program
       ORDER BY lates DESC
     `,
+    prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT COUNT(*) AS n FROM late_records r JOIN students s ON s.roll_no = r.roll_no
+      WHERE r.late_date = ${toDbDate(today)} AND s.section IN (SELECT name FROM sections WHERE shift = 'EVENING')
+    `,
   ]);
+  const evening = Number(eveningToday[0]?.n ?? 0);
 
   const countByRoll = new Map(monthCounts.map((c) => [c.rollNo, c._count._all]));
   const habitualToday = todayRecords.filter(
@@ -199,7 +205,14 @@ async function Dashboard() {
           label="Late today"
           value={todayCount}
           href="/records?range=today"
-          footer={<Delta today={todayCount} yesterday={yesterdayCount} />}
+          footer={
+            <span className="flex flex-col gap-0.5">
+              <Delta today={todayCount} yesterday={yesterdayCount} />
+              <span>
+                Morning {todayCount - evening} · Evening {evening}
+              </span>
+            </span>
+          }
         />
         <Kpi
           icon={<Users className="size-4" aria-hidden />}

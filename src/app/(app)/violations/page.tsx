@@ -471,6 +471,11 @@ function Filters({
             <option value="MAJOR">Major</option>
             <option value="SEVERE">Severe</option>
           </Select>
+          <Select name="shift" defaultValue={filters.shift} aria-label="Shift">
+            <option value="">Both shifts</option>
+            <option value="MORNING">Morning shift</option>
+            <option value="EVENING">Evening shift</option>
+          </Select>
           <Select name="program" defaultValue={filters.program} aria-label="Program">
             <option value="">All programs</option>
             {programs.map((p) => (

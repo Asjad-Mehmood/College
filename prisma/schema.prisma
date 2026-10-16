@@ -89,6 +89,11 @@ enum ConsentStatus {
   REFUSED
 }
 
+enum Shift {
+  MORNING
+  EVENING
+}
+
 enum StudyYear {
   FIRST
   SECOND
@@ -196,19 +201,22 @@ model Session {
 
 // Single-row table (id = 1) holding the configurable portal rules.
 model PortalSettings {
-  id                Int      @id @default(1)
-  collegeName       String   @default("Government College") @map("college_name") @db.VarChar(150)
-  collegeAddress    String   @default("") @map("college_address") @db.VarChar(255)
-  timezone          String   @default("Asia/Karachi") @db.VarChar(64)
-  schedule          Schedule @default(SUMMER)
+  id                     Int      @id @default(1)
+  collegeName            String   @default("Government College") @map("college_name") @db.VarChar(150)
+  collegeAddress         String   @default("") @map("college_address") @db.VarChar(255)
+  timezone               String   @default("Asia/Karachi") @db.VarChar(64)
+  schedule               Schedule @default(SUMMER)
   // "HH:MM" in the college timezone.
-  summerStartTime   String   @default("08:00") @map("summer_start_time") @db.VarChar(5)
-  winterStartTime   String   @default("08:30") @map("winter_start_time") @db.VarChar(5)
-  gracePeriodMins   Int      @default(10) @map("grace_period_mins")
-  habitualThreshold Int      @default(3) @map("habitual_threshold")
-  criticalThreshold Int      @default(5) @map("critical_threshold")
-  defaultFineAmount Decimal  @default(100) @map("default_fine_amount") @db.Decimal(8, 2)
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  summerStartTime        String   @default("08:00") @map("summer_start_time") @db.VarChar(5)
+  winterStartTime        String   @default("08:30") @map("winter_start_time") @db.VarChar(5)
+  // Evening shift start times (the two above are the morning shift).
+  eveningSummerStartTime String   @default("13:30") @map("evening_summer_start_time") @db.VarChar(5)
+  eveningWinterStartTime String   @default("13:00") @map("evening_winter_start_time") @db.VarChar(5)
+  gracePeriodMins        Int      @default(10) @map("grace_period_mins")
+  habitualThreshold      Int      @default(3) @map("habitual_threshold")
+  criticalThreshold      Int      @default(5) @map("critical_threshold")
+  defaultFineAmount      Decimal  @default(100) @map("default_fine_amount") @db.Decimal(8, 2)
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   @@map("portal_settings")
 }
@@ -513,6 +521,8 @@ model Section {
   id        Int        @id @default(autoincrement())
   name      String     @unique @db.VarChar(20)
   year      StudyYear?
+  // Students take the shift (and so the start time) of their section.
+  shift     Shift      @default(MORNING)
   createdAt DateTime   @default(now()) @map("created_at")
 
   @@map("sections")

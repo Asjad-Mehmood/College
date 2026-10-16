@@ -7,7 +7,7 @@ import { Skeleton, cx } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { ACTION_LABELS, REASON_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
-import { getSettings } from "@/lib/settings";
+import { SHIFT_LABELS, getSettings, shiftStart } from "@/lib/settings";
 import { strikeLevel } from "@/lib/strikes";
 import { formatDate, formatMinutes, formatMonth, formatTime, fromDbDate, localParts } from "@/lib/time";
 
@@ -44,6 +44,7 @@ async function Letter({
     include: { lateRecords: { orderBy: [{ lateDate: "asc" }, { arrivedAt: "asc" }] } },
   });
   if (!student) notFound();
+  const shift = (await prisma.section.findUnique({ where: { name: student.section }, select: { shift: true } }))?.shift ?? "MORNING";
 
   const today = localParts(new Date(), settings.timezone).date;
   const months = [...new Set(student.lateRecords.map((r) => fromDbDate(r.lateDate).slice(0, 7)))].sort().reverse();
@@ -113,7 +114,7 @@ async function Letter({
             </span>
             , arrived late to college on <span className="font-semibold">{records.length}</span>{" "}
             {records.length === 1 ? "occasion" : "occasions"} during {formatMonth(`${month}-01`)}, as detailed below.
-            College starts at {formatMinutes(settings.startMinutes)}.
+            The {SHIFT_LABELS[shift].toLowerCase()} shift starts at {formatMinutes(shiftStart(settings, shift).startMinutes)}.
           </p>
 
           <table className="mt-4 w-full border-collapse text-[13px]">

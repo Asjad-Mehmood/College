@@ -31,7 +31,7 @@ import { telLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
 import { getClassOptions } from "@/lib/records";
 import { getSectionOptions } from "@/lib/section-options";
-import { getSettings } from "@/lib/settings";
+import { SHIFT_LABELS, getSettings } from "@/lib/settings";
 import { STRIKE_LABELS, ordinal, strikeLevel } from "@/lib/strikes";
 import { formatDate, formatMonth, formatTime, fromDbDate, localParts } from "@/lib/time";
 
@@ -82,6 +82,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
     },
   });
   if (!student) notFound();
+  const sectionShift = (await prisma.section.findUnique({ where: { name: student.section }, select: { shift: true } }))?.shift;
 
   const today = localParts(new Date(), settings.timezone).date;
   const thisMonth = today.slice(0, 7);
@@ -130,7 +131,10 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
               </div>
               <div>
                 <dt className="text-[12px] text-muted">Section</dt>
-                <dd className="font-medium">{student.section}</dd>
+                <dd className="font-medium">
+                  {student.section}
+                  {sectionShift && <span className="font-normal text-muted"> · {SHIFT_LABELS[sectionShift]} shift</span>}
+                </dd>
               </div>
               <div>
                 <dt className="text-[12px] text-muted">Parent phone</dt>
