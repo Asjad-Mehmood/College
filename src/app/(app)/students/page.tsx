@@ -6,7 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { StudentStatus } from "@/generated/prisma/enums";
 import { FilterForm } from "@/components/filter-form";
 import { StudentDialog } from "@/components/student-dialog";
-import { NewSectionForm, ProgramsCard, SectionSettings } from "./section-forms";
+import { NewSectionDialog, ProgramsDialog, SectionSettings } from "./section-forms";
 import {
   Avatar,
   ButtonLink,
@@ -63,7 +63,13 @@ export default function StudentsPage(props: PageProps<"/students">) {
 
 async function Header() {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
-  const [{ programs }, sections] = await Promise.all([getClassOptions(), getSectionOptions()]);
+  const [{ programs }, sections, programRows, programCounts] = await Promise.all([
+    getClassOptions(),
+    getSectionOptions(),
+    prisma.program.findMany({ orderBy: { name: "asc" } }),
+    prisma.student.groupBy({ by: ["program"], _count: { _all: true } }),
+  ]);
+  const counts = new Map(programCounts.map((g) => [g.program, g._count._all]));
   return (
     <PageHeader
       title="Students"
@@ -74,6 +80,8 @@ async function Header() {
             <Link href="/settings#import" className={buttonClass("secondary")}>
               <Upload className="size-4" aria-hidden /> Bulk import
             </Link>
+            <ProgramsDialog programs={programRows.map((p) => ({ id: p.id, name: p.name, students: counts.get(p.name) ?? 0 }))} />
+            <NewSectionDialog />
             <StudentDialog programs={programs} sections={sections} />
           </>
         )
@@ -118,12 +126,11 @@ async function Content({ searchParams }: { searchParams: SP }) {
 }
 
 async function SectionsOverview() {
-  const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  await requireUser(["ADMIN", "PRINCIPAL"]);
   const settings = await getSettings();
   const today = localParts(new Date(), settings.timezone).date;
-  const [sections, programRows, groups, lates] = await Promise.all([
+  const [sections, groups, lates] = await Promise.all([
     getSectionOptions(),
-    prisma.program.findMany({ orderBy: { name: "asc" } }),
     prisma.student.groupBy({ by: ["section", "program"], where: { status: "ACTIVE" }, _count: { _all: true } }),
     prisma.$queryRaw<{ section: string; lates: bigint }[]>`
       SELECT s.section, COUNT(*) AS lates
@@ -133,8 +140,6 @@ async function SectionsOverview() {
     `,
   ]);
   const latesBySection = new Map(lates.map((l) => [l.section, Number(l.lates)]));
-  const programCounts = new Map<string, number>();
-  for (const g of groups) programCounts.set(g.program, (programCounts.get(g.program) ?? 0) + g._count._all);
   const info = new Map<string, { count: number; programs: string[] }>();
   for (const g of groups) {
     const entry = info.get(g.section) ?? { count: 0, programs: [] };
@@ -151,54 +156,69 @@ async function SectionsOverview() {
     .map((g) => ({ ...g, list: sections.filter((x) => x.year === g.key) }))
     .filter((g) => g.list.length > 0);
 
+  const totalLate = [...latesBySection.values()].reduce((a, b) => a + b, 0);
+  const emptySections = sections.filter((x) => !info.get(x.name)?.count).length;
+  const stats = [
+    { label: "Active students", value: total },
+    { label: "Sections", value: sections.length },
+    { label: "Late this month", value: totalLate },
+    { label: "Empty sections", value: emptySections },
+  ];
+
   return (
     <div className="flex flex-col gap-5">
-      {can.administer(user.role) && (
-        <div className="grid items-start gap-5 lg:grid-cols-2">
-          <NewSectionForm />
-          <ProgramsCard programs={programRows.map((p) => ({ id: p.id, name: p.name, students: programCounts.get(p.name) ?? 0 }))} />
-        </div>
-      )}
       {sections.length === 0 ? (
         <Card>
           <EmptyState icon={<UserX className="size-5" />} title="No sections yet">
-            Add your first section above (for example CD1, 1st year), then add students to it.
+            Use <span className="font-medium text-ink">Add section</span> above (for example CD1, 1st year), then add students to it.
           </EmptyState>
         </Card>
       ) : (
         <>
-          <p className="text-[13px] text-ink-2">
-            <span className="font-semibold text-ink tabular">{total.toLocaleString()}</span> active students in{" "}
-            <span className="font-semibold text-ink tabular">{sections.length}</span> sections
-          </p>
-          {groupsByYear.map((g) => (
-            <section key={g.title}>
-              <h2 className="mb-3 text-[13px] font-semibold tracking-wide text-muted uppercase">{g.title}</h2>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {g.list.map((sec) => {
-                  const i = info.get(sec.name);
-                  const late = latesBySection.get(sec.name) ?? 0;
-                  return (
-                    <Link key={sec.id} href={`/students?section=${encodeURIComponent(sec.name)}`} className="group">
-                      <Card className="h-full p-4 transition-colors group-hover:border-line-strong">
-                        <p className="text-lg font-semibold tracking-tight group-hover:underline">{sec.name}</p>
-                        <p className="mt-0.5 truncate text-[12px] text-muted" title={i?.programs.join(", ")}>
-                          {i?.programs.join(", ") || "No students yet"}
-                        </p>
-                        <p className="mt-3 text-2xl font-semibold tabular">{i?.count ?? 0}</p>
-                        <p className="text-[12px] text-muted">students</p>
-                        {late > 0 && (
-                          <p className="mt-2 text-[12px] text-ink-2">
-                            <span className="font-medium tabular">{late}</span> late this month
+          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {stats.map((x) => (
+              <Card key={x.label} className="px-4 py-3">
+                <dt className="text-[12px] text-muted">{x.label}</dt>
+                <dd className="mt-0.5 text-2xl font-semibold tabular">{x.value.toLocaleString()}</dd>
+              </Card>
+            ))}
+          </dl>
+          {groupsByYear.map((g) => {
+            const yearTotal = g.list.reduce((sum, x) => sum + (info.get(x.name)?.count ?? 0), 0);
+            return (
+              <section key={g.title}>
+                <div className="mb-3 flex items-baseline gap-2">
+                  <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">{g.title}</h2>
+                  <span className="text-[12px] text-muted tabular">
+                    {g.list.length} sections · {yearTotal.toLocaleString()} students
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {g.list.map((sec) => {
+                    const i = info.get(sec.name);
+                    const late = latesBySection.get(sec.name) ?? 0;
+                    const progs = [...new Set(i?.programs ?? [])];
+                    return (
+                      <Link key={sec.id} href={`/students?section=${encodeURIComponent(sec.name)}`} className="group">
+                        <Card className="flex h-full flex-col p-4 transition-colors group-hover:border-line-strong">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-lg font-semibold tracking-tight group-hover:underline">{sec.name}</p>
+                            {late > 0 && <Pill tone="warning">{late} late</Pill>}
+                          </div>
+                          <p className="mt-2 text-2xl font-semibold tabular">
+                            {i?.count ?? 0} <span className="text-[12px] font-normal text-muted">students</span>
                           </p>
-                        )}
-                      </Card>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+                          <p className="mt-1 truncate text-[12px] text-muted" title={progs.join(", ")}>
+                            {progs.join(", ") || "No students yet"}
+                          </p>
+                        </Card>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
         </>
       )}
     </div>
@@ -237,7 +257,7 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
     }),
   };
 
-  const [students, total, classes, sectionRow] = await Promise.all([
+  const [students, total, classes, sectionRow, sectionOpts, monthLates] = await Promise.all([
     prisma.student.findMany({
       where,
       orderBy: [{ program: "asc" }, { section: "asc" }, { rollNo: "asc" }],
@@ -248,6 +268,8 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
     prisma.student.count({ where }),
     getClassOptions(),
     section ? prisma.section.findUnique({ where: { name: section } }) : null,
+    getSectionOptions(),
+    section ? prisma.lateRecord.count({ where: { ...monthWhere, student: { section } } }) : 0,
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageHref = (p: number) => {
@@ -264,14 +286,37 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
   return (
     <div className="flex flex-col gap-4">
       {section && !q && !program && (
-        <div className="flex flex-wrap items-center gap-3">
-          <Link href="/students" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 hover:text-ink">
+        <Card className="p-5">
+          <Link href="/students" className="mb-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 hover:text-ink">
             <ArrowLeft className="size-4" aria-hidden /> All sections
           </Link>
-          <h2 className="text-lg font-semibold">Section {section}</h2>
-          {sectionRow?.year && <Pill>{YEAR_LABELS[sectionRow.year]}</Pill>}
-          {sectionRow && can.administer(user.role) && <SectionSettings id={sectionRow.id} name={sectionRow.name} year={sectionRow.year} students={total} />}
-        </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-xl font-semibold tracking-tight">Section {section}</h2>
+              {sectionRow?.year && <Pill>{YEAR_LABELS[sectionRow.year]}</Pill>}
+            </div>
+            {can.administer(user.role) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <StudentDialog programs={classes.programs} sections={sectionOpts} defaultSection={section} />
+                {sectionRow && <SectionSettings id={sectionRow.id} name={sectionRow.name} year={sectionRow.year} students={total} />}
+              </div>
+            )}
+          </div>
+          <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-[13px]">
+            <div>
+              <dt className="text-muted">Students shown</dt>
+              <dd className="text-lg font-semibold tabular">{total}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">Late this month</dt>
+              <dd className="text-lg font-semibold tabular">{monthLates}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">Programs</dt>
+              <dd className="text-lg font-semibold">{[...new Set(students.map((x) => x.program))].join(", ") || "—"}</dd>
+            </div>
+          </dl>
+        </Card>
       )}
       <Card className="p-4">
         <FilterForm action="/students" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">

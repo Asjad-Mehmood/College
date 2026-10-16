@@ -18,7 +18,7 @@ export type StudentFields = {
   status: string;
 };
 
-export function StudentDialog({ student, programs, sections }: { student?: StudentFields; programs: string[]; sections: { name: string; year: "FIRST" | "SECOND" | null }[] }) {
+export function StudentDialog({ student, programs, sections, defaultSection }: { defaultSection?: string; student?: StudentFields; programs: string[]; sections: { name: string; year: "FIRST" | "SECOND" | null }[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const editing = !!student;
   const [state, onSubmit, pending] = useFormAction(saveStudent, null, { resetOnSuccess: !editing });
@@ -72,7 +72,7 @@ export function StudentDialog({ student, programs, sections }: { student?: Stude
               </Select>
             </Field>
             <Field label="Section *" hint={sections.length === 0 ? "Create a section first (Students → By section)." : undefined}>
-              <Select name="section" required defaultValue={student?.section ?? ""}>
+              <Select name="section" required defaultValue={student?.section ?? defaultSection ?? ""}>
                 <option value="" disabled>
                   Choose a section…
                 </option>
