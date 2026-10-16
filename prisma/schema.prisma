@@ -1,0 +1,11 @@
+// Prisma schema: https://pris.ly/d/prisma-schema
+// The connection string comes from DB_URL (see prisma.config.ts).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
