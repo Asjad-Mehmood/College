@@ -4,14 +4,15 @@ import { Suspense } from "react";
 import { CalendarX, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Plus, Printer, ShieldCheck } from "lucide-react";
 import { FilterForm, PrintButton } from "@/components/filter-form";
 import { MonthCalendar } from "@/components/month-calendar";
-import { ButtonLink, Card, EmptyState, Input, PageHeader, Select, Skeleton, buttonClass, cx } from "@/components/ui";
+import { ButtonLink, Card, EmptyState, Input, PageHeader, Select, Skeleton, StrikeBadge, buttonClass, cx } from "@/components/ui";
 import { ViewTabs, pickView } from "@/components/view-tabs";
 import { ViolationTable } from "@/components/violation-table";
 import { can, requireUser } from "@/lib/auth";
+import { SEVERITY_LABELS, SEVERITY_LEVEL } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { RANGES, getClassOptions, monthOptions } from "@/lib/records";
 import { getSettings } from "@/lib/settings";
-import { formatDate, formatMonth, fromDbDate, isValidMonth, isValidYmd, localParts, nextMonthStart, toDbDate } from "@/lib/time";
+import { addDays, formatDate, formatMonth, fromDbDate, isValidMonth, isValidYmd, localParts, nextMonthStart, toDbDate } from "@/lib/time";
 import {
   VIOLATION_PAGE_SIZE,
   getViolationTypes,
@@ -94,6 +95,27 @@ async function MonthView({ params }: { params: Params }) {
         ? today
         : (daysWithCases.at(-1) ?? null);
   const monthTotal = Object.values(counts).reduce((a, b) => a + b, 0);
+  const monthWhere = { incidentDate: { gte: toDbDate(`${month}-01`), lt: toDbDate(nextMonthStart(`${month}-01`)) } };
+  const [bySeverity, byType, fines, unpaidAll, openList, repeat] = await Promise.all([
+    prisma.violation.groupBy({ by: ["severity"], where: monthWhere, _count: { _all: true } }),
+    prisma.violation.groupBy({ by: ["typeId"], where: monthWhere, _count: { _all: true } }),
+    prisma.violation.aggregate({ where: monthWhere, _sum: { fineAmount: true } }),
+    prisma.violation.aggregate({ where: { finePaid: false, fineAmount: { gt: 0 } }, _sum: { fineAmount: true }, _count: { _all: true } }),
+    prisma.violation.findMany({
+      where: { status: "OPEN" },
+      orderBy: [{ incidentDate: "asc" }],
+      take: 8,
+      include: { type: { select: { name: true } }, student: { select: { fullName: true, section: true } } },
+    }),
+    prisma.violation.groupBy({ by: ["rollNo"], _count: { _all: true }, having: { rollNo: { _count: { gte: 2 } } }, orderBy: { _count: { rollNo: "desc" } }, take: 8 }),
+  ]);
+  const typeNames = new Map((await prisma.violationType.findMany({ select: { id: true, name: true } })).map((t) => [t.id, t.name]));
+  const repeatStudents = repeat.length
+    ? new Map((await prisma.student.findMany({ where: { rollNo: { in: repeat.map((r) => r.rollNo) } }, select: { rollNo: true, fullName: true, section: true } })).map((x) => [x.rollNo, x]))
+    : new Map<string, { rollNo: string; fullName: string; section: string }>();
+  const sev = (k: string) => bySeverity.find((b) => b.severity === k)?._count._all ?? 0;
+  const typeTotal = byType.reduce((a, t) => a + t._count._all, 0);
+  const daysOpen = (d: Date) => Math.max(0, Math.round((toDbDate(today).getTime() - d.getTime()) / 86_400_000));
   const { rows } = date
     ? await queryViolations({ ...parseViolationFilters({}), range: "custom", from: date, to: date }, settings, { limit: 1000 })
     : { rows: [] };
@@ -176,6 +198,135 @@ async function MonthView({ params }: { params: Params }) {
           </EmptyState>
         )}
       </Card>
+
+      <div className="no-print grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {[
+          { label: "Cases this month", value: monthTotal.toLocaleString(), sub: `${students.length} students` },
+          { label: "Minor", value: sev("MINOR").toLocaleString(), href: `/violations?view=search&range=custom&from=${month}-01&to=${addDays(nextMonthStart(`${month}-01`), -1)}&severity=MINOR` },
+          { label: "Major", value: sev("MAJOR").toLocaleString(), href: `/violations?view=search&range=custom&from=${month}-01&to=${addDays(nextMonthStart(`${month}-01`), -1)}&severity=MAJOR` },
+          { label: "Severe", value: sev("SEVERE").toLocaleString(), href: `/violations?view=search&range=custom&from=${month}-01&to=${addDays(nextMonthStart(`${month}-01`), -1)}&severity=SEVERE` },
+          {
+            label: "Unpaid fines (all)",
+            value: `Rs. ${Number(unpaidAll._sum.fineAmount ?? 0).toLocaleString()}`,
+            sub: `${unpaidAll._count._all} ${unpaidAll._count._all === 1 ? "case" : "cases"} · Rs. ${Number(fines._sum.fineAmount ?? 0).toLocaleString()} fined this month`,
+            href: "/violations?view=search&range=all&fines=unpaid",
+          },
+        ].map((x) => {
+          const body = (
+            <>
+              <p className="text-[12px] text-muted">{x.label}</p>
+              <p className="mt-0.5 text-xl font-semibold tabular">{x.value}</p>
+              {x.sub && <p className="text-[12px] text-muted">{x.sub}</p>}
+            </>
+          );
+          return x.href ? (
+            <Link key={x.label} href={x.href} className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card hover:border-line-strong">
+              {body}
+            </Link>
+          ) : (
+            <Card key={x.label} className="px-4 py-3">
+              {body}
+            </Card>
+          );
+        })}
+      </div>
+
+      <div className="no-print grid gap-4 xl:grid-cols-3">
+        <Card className="overflow-hidden xl:col-span-2">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <div>
+              <h2 className="text-[15px] font-semibold">Open cases</h2>
+              <p className="text-[13px] text-muted">Oldest first — close them once action is complete</p>
+            </div>
+            {openCases > openList.length && (
+              <Link href="/violations?view=search&range=all&status=OPEN" className="text-[13px] font-medium text-accent-ink hover:underline">
+                All {openCases}
+              </Link>
+            )}
+          </div>
+          {openList.length === 0 ? (
+            <p className="px-5 py-6 text-[13px] text-muted">No open cases. Everything is closed.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {openList.map((v) => {
+                const age = daysOpen(v.incidentDate);
+                return (
+                  <li key={v.id}>
+                    <Link href={`/violations/${v.id}`} className="flex items-center gap-3 px-5 py-2.5 hover:bg-surface-2/60">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {v.student.fullName} · {v.type.name}
+                        </span>
+                        <span className="block truncate text-[12px] text-muted">
+                          <span className="font-mono">{v.rollNo}</span> · {v.student.section} · {formatDate(fromDbDate(v.incidentDate))}
+                        </span>
+                      </span>
+                      <StrikeBadge level={SEVERITY_LEVEL[v.severity]} label={SEVERITY_LABELS[v.severity]} />
+                      <span className={cx("w-20 text-right text-[12px] tabular", age > 14 ? "font-medium text-danger-ink" : "text-muted")}>
+                        {age === 0 ? "today" : `${age} days open`}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+        <div className="flex flex-col gap-4">
+          <Card className="overflow-hidden">
+            <div className="border-b border-line px-5 py-3">
+              <h2 className="text-[15px] font-semibold">Repeat offenders</h2>
+              <p className="text-[13px] text-muted">2 or more violations on record</p>
+            </div>
+            {repeat.length === 0 ? (
+              <p className="px-5 py-4 text-[13px] text-muted">None.</p>
+            ) : (
+              <ul className="divide-y divide-line">
+                {repeat.map((r) => {
+                  const st = repeatStudents.get(r.rollNo);
+                  return (
+                    <li key={r.rollNo}>
+                      <Link href={`/students/${encodeURIComponent(r.rollNo)}`} className="flex items-center justify-between gap-3 px-5 py-2 hover:bg-surface-2/60">
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">{st?.fullName ?? r.rollNo}</span>
+                          <span className="block text-[12px] text-muted">
+                            <span className="font-mono">{r.rollNo}</span> · {st?.section}
+                          </span>
+                        </span>
+                        <span className="text-sm font-semibold tabular">{r._count._all}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+          {byType.length > 0 && (
+            <Card className="overflow-hidden">
+              <div className="border-b border-line px-5 py-3">
+                <h2 className="text-[15px] font-semibold">By type</h2>
+                <p className="text-[13px] text-muted">{formatMonth(`${month}-01`)}</p>
+              </div>
+              <ul className="flex flex-col gap-3 px-5 py-4">
+                {[...byType].sort((a, b) => b._count._all - a._count._all).map((t) => {
+                  const pct = typeTotal ? Math.round((t._count._all / typeTotal) * 100) : 0;
+                  return (
+                    <li key={t.typeId}>
+                      <div className="flex justify-between text-[13px]">
+                        <span>{typeNames.get(t.typeId)}</span>
+                        <span className="text-muted tabular">{t._count._all}</span>
+                      </div>
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                        <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -341,6 +492,20 @@ function Filters({
             <Input type="date" name="to" defaultValue={filters.to} className="w-auto" aria-label="To date" />
           </div>
         )}
+        <div className="flex flex-wrap items-center gap-2">
+          {RANGES.filter((r) => r.value !== "custom").map((r) => (
+            <Link
+              key={r.value}
+              href={`/violations?view=search&${violationFiltersToQuery({ ...filters, range: r.value, page: 1 })}`}
+              className={cx(
+                "rounded-full border px-3 py-1.5 text-[13px] font-medium",
+                filters.range === r.value ? "border-accent bg-accent text-on-accent" : "border-line text-ink-2 hover:bg-surface-2",
+              )}
+            >
+              {r.label}
+            </Link>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-full border border-line p-0.5" role="radiogroup" aria-label="Case status">
             {statusChips.map((c) => (
