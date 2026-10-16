@@ -9,6 +9,7 @@ import {
   deleteViolation,
   reopenViolation,
   setViolationFinePaid,
+  uploadViolationFile,
 } from "../actions";
 
 export function CaseActions({
@@ -26,6 +27,7 @@ export function CaseActions({
   const [closing, setClosing] = useState(false);
   const [note, setNote] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -46,13 +48,29 @@ export function CaseActions({
             className="flex flex-col gap-2"
             onSubmit={(e) => {
               e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const file = fd.get("file");
+              setUploadError(null);
               start(async () => {
+                if (file instanceof File && file.size > 0) {
+                  const up = await uploadViolationFile(id, fd);
+                  if (!up.ok) {
+                    setUploadError(up.error ?? "Upload failed.");
+                    return;
+                  }
+                }
                 await closeViolation(id, note);
                 setClosing(false);
               });
             }}
           >
             <Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} autoFocus placeholder="Closing note, e.g. Parent met the committee; undertaking signed" />
+            <label className="flex flex-col gap-1 text-[12px] text-muted">
+              Attach application / undertaking (optional)
+              <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,application/pdf,image/*" className="text-[13px] text-ink-2 file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-[13px] file:font-medium file:text-ink" />
+            </label>
+            <input type="hidden" name="note" value="Attached when closing the case" />
+            {uploadError && <p className="text-[12px] text-danger-ink">{uploadError}</p>}
             <div className="flex justify-end gap-2">
               <Button type="button" size="sm" variant="ghost" onClick={() => setClosing(false)}>
                 Cancel

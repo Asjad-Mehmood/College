@@ -233,3 +233,44 @@ export async function deleteViolation(id: number) {
   await prisma.violation.delete({ where: { id } });
   redirect("/violations");
 }
+
+const ATTACHMENT_TYPES: Record<string, string> = {
+  "application/pdf": "PDF",
+  "image/jpeg": "JPG",
+  "image/png": "PNG",
+  "image/webp": "WEBP",
+  "application/msword": "DOC",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
+};
+const MAX_ATTACHMENT_BYTES = 3.5 * 1024 * 1024;
+
+/** Attach a file (application, undertaking, parent letter…) to a case. */
+export async function uploadViolationFile(id: number, formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser(["ADMIN"]);
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose a file to upload." };
+  if (!ATTACHMENT_TYPES[file.type]) return { ok: false, error: "Upload a PDF, photo (JPG/PNG) or Word file." };
+  if (file.size > MAX_ATTACHMENT_BYTES) return { ok: false, error: "The file is larger than 3.5 MB. Scan at a lower quality or as PDF." };
+  const exists = await prisma.violation.findUnique({ where: { id }, select: { id: true } });
+  if (!exists) return { ok: false, error: "Case not found." };
+  const note = String(formData.get("note") ?? "").trim().slice(0, 200) || null;
+  await prisma.violationAttachment.create({
+    data: {
+      violationId: id,
+      fileName: file.name.slice(0, 200) || "document",
+      mimeType: file.type,
+      size: file.size,
+      data: new Uint8Array(await file.arrayBuffer()),
+      note,
+      uploadedBy: user.fullName,
+    },
+  });
+  refresh();
+  return { ok: true };
+}
+
+export async function deleteViolationFile(fileId: number) {
+  await requireUser(["ADMIN"]);
+  await prisma.violationAttachment.delete({ where: { id: fileId } });
+  refresh();
+}

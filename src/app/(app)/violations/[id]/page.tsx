@@ -10,6 +10,7 @@ import { telLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { formatDate, formatMinutes, fromDbDate, localParts, parseHHMM } from "@/lib/time";
+import { Attachments } from "./attachments";
 import { CaseActions } from "./case-actions";
 
 export const metadata: Metadata = { title: "Violation case" };
@@ -37,7 +38,7 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
     include: { student: true, type: true, recordedBy: { select: { fullName: true } } },
   });
   if (!v) notFound();
-  const [others, total] = await Promise.all([
+  const [others, total, files] = await Promise.all([
     prisma.violation.findMany({
       where: { rollNo: v.rollNo, id: { not: v.id } },
       orderBy: { incidentDate: "desc" },
@@ -45,6 +46,11 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
       include: { type: { select: { name: true } } },
     }),
     prisma.violation.count({ where: { rollNo: v.rollNo } }),
+    prisma.violationAttachment.findMany({
+      where: { violationId: v.id },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, fileName: true, mimeType: true, size: true, note: true, uploadedBy: true, createdAt: true },
+    }),
   ]);
   const s = v.student;
   const fine = Number(v.fineAmount);
@@ -134,6 +140,16 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
                 ))}
               </ul>
             )}
+          </div>
+        </Card>
+        <Card className="no-print">
+          <CardHeader title="Documents" description="Applications, undertakings and letters kept with this case." />
+          <div className="p-5">
+            <Attachments
+              caseId={v.id}
+              manage={can.manageRecords(user.role)}
+              files={files.map((f) => ({ ...f, createdAt: f.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) }))}
+            />
           </div>
         </Card>
       </div>

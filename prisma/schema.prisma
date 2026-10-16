@@ -254,9 +254,10 @@ model Violation {
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
 
-  student    Student       @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
-  type       ViolationType @relation(fields: [typeId], references: [id])
-  recordedBy User          @relation(fields: [recordedById], references: [id])
+  student     Student               @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
+  type        ViolationType         @relation(fields: [typeId], references: [id])
+  recordedBy  User                  @relation(fields: [recordedById], references: [id])
+  attachments ViolationAttachment[]
 
   @@index([incidentDate])
   @@index([rollNo])
@@ -521,4 +522,23 @@ model Program {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("programs")
+}
+
+// A file kept with a violation case: the student's application, an undertaking,
+// a parent letter… Stored in the database so no extra storage service is needed.
+model ViolationAttachment {
+  id          Int      @id @default(autoincrement())
+  violationId Int      @map("violation_id")
+  fileName    String   @map("file_name") @db.VarChar(200)
+  mimeType    String   @map("mime_type") @db.VarChar(100)
+  size        Int
+  data        Bytes
+  note        String?  @db.VarChar(200)
+  uploadedBy  String   @map("uploaded_by") @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  violation Violation @relation(fields: [violationId], references: [id], onDelete: Cascade)
+
+  @@index([violationId])
+  @@map("violation_attachments")
 }
