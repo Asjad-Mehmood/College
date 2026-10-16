@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { FileSpreadsheet, KeyRound, Mail, Snowflake, Sun, UploadCloud, UserPlus } from "lucide-react";
+import { ClipboardPaste, FileSpreadsheet, KeyRound, ListChecks, Mail, Snowflake, Sun, UploadCloud, UserPlus } from "lucide-react";
 import type { Role } from "@/generated/prisma/enums";
 import { Button, Field, FormMessage, Input, Pill, Select, cx, fieldClass } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
@@ -153,21 +153,60 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
 }
 
 export function ImportForm({ batches = [], defaultBatchId }: { batches?: { id: number; name: string; passedOut: boolean }[]; defaultBatchId?: number | null }) {
+  const [source, setSource] = useState<"file" | "paste">("file");
   const [fileName, setFileName] = useState<string | null>(null);
-  const [report, onSubmit, pending] = useFormAction<ImportReport | null>(
-    async (prev, fd) => {
-      const res = await uploadStudents(prev, fd);
-      if (res.ok) setFileName(null);
-      return res;
-    },
-    null,
-    { resetOnSuccess: true },
-  );
+  const [text, setText] = useState("");
+  const [report, setReport] = useState<ImportReport | null>(null);
+  const [pending, start] = useTransition();
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const ready = source === "file" ? !!fileName : !!text.trim();
+  const pastedRows = text.split("\n").filter((l) => l.trim()).length;
+
+  function run(form: HTMLFormElement, mode: "check" | "import") {
+    const fd = new FormData(form);
+    fd.set("mode", mode);
+    fd.set("source", source);
+    start(async () => {
+      const res = await uploadStudents(report, fd);
+      setReport(res);
+      if (res.ok && !res.checked) {
+        setFileName(null);
+        setText("");
+        if (inputRef.current) inputRef.current.value = "";
+      }
+    });
+  }
+  function changed() {
+    if (report) setReport(null);
+  }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(e.currentTarget, "import");
+      }}
+      className="flex flex-col gap-4"
+    >
+      <ol className="grid gap-2 text-[13px] text-ink-2 sm:grid-cols-3">
+        {["Download the Excel template (has your programs & sections).", "Fill it, or copy rows from your own Excel list.", "Upload or paste, click “Check first”, then import."].map((t, i) => (
+          <li key={t} className="flex gap-2 rounded-xl bg-surface-2/70 px-3 py-2">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent-ink">{i + 1}</span>
+            {t}
+          </li>
+        ))}
+      </ol>
+      <div className="flex flex-wrap items-center gap-3">
+        <a href="/api/import-template" download className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium hover:bg-surface-2">
+          <FileSpreadsheet className="size-4 text-accent-ink" aria-hidden />
+          Download Excel template
+        </a>
+        <a href="/student-import-template.csv" download className="text-[13px] text-muted hover:underline">
+          or CSV
+        </a>
+      </div>
+
       {batches.length > 0 && (
         <Field label="Batch for new students" hint="Students go to the batch studying in their section’s year; this is used when the section has no year set. Existing students keep their batch.">
           <Select name="batchId" defaultValue={String(defaultBatchId ?? "")}>
@@ -181,66 +220,163 @@ export function ImportForm({ batches = [], defaultBatchId }: { batches?: { id: n
           </Select>
         </Field>
       )}
-      <label
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          const file = e.dataTransfer.files[0];
-          if (file && inputRef.current) {
-            const dt = new DataTransfer();
-            dt.items.add(file);
-            inputRef.current.files = dt.files;
-            setFileName(file.name);
-          }
-        }}
-        className={cx(
-          "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors",
-          dragging ? "border-accent bg-accent-soft" : "border-line-strong/70 hover:border-accent/60 hover:bg-surface-2/60",
-        )}
-      >
-        <div className="flex size-12 items-center justify-center rounded-2xl bg-accent-soft text-accent-ink">
-          {fileName ? <FileSpreadsheet className="size-6" aria-hidden /> : <UploadCloud className="size-6" aria-hidden />}
-        </div>
-        {fileName ? (
-          <p className="text-sm font-medium">{fileName}</p>
-        ) : (
-          <>
-            <p className="text-sm font-medium">Drop the student list here, or click to choose</p>
-            <p className="text-[13px] text-muted">Excel (.xlsx, .xls) or CSV · first sheet only · up to 4 MB</p>
-          </>
-        )}
-        <input
-          ref={inputRef}
-          type="file"
-          name="file"
-          accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
-          className="sr-only"
-          onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-        />
-      </label>
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <a href="/student-import-template.csv" download className="text-[13px] font-medium text-accent-ink hover:underline">
-          Download the template (CSV)
-        </a>
-        <Button type="submit" variant="primary" disabled={pending || !fileName}>
+      <div className="flex gap-1 self-start rounded-xl bg-surface-2 p-1" role="tablist">
+        {(
+          [
+            ["file", "Upload file", UploadCloud],
+            ["paste", "Paste from Excel", ClipboardPaste],
+          ] as const
+        ).map(([key, label, Icon]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={source === key}
+            onClick={() => {
+              setSource(key);
+              changed();
+            }}
+            className={cx(
+              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium",
+              source === key ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink",
+            )}
+          >
+            <Icon className="size-4" aria-hidden />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div hidden={source !== "file"}>
+        <label
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const file = e.dataTransfer.files[0];
+            if (file && inputRef.current) {
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              inputRef.current.files = dt.files;
+              setFileName(file.name);
+              changed();
+            }
+          }}
+          className={cx(
+            "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors",
+            dragging ? "border-accent bg-accent-soft" : "border-line-strong/70 hover:border-accent/60 hover:bg-surface-2/60",
+          )}
+        >
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-accent-soft text-accent-ink">
+            {fileName ? <FileSpreadsheet className="size-6" aria-hidden /> : <UploadCloud className="size-6" aria-hidden />}
+          </div>
+          {fileName ? (
+            <p className="text-sm font-medium">{fileName}</p>
+          ) : (
+            <>
+              <p className="text-sm font-medium">Drop the student list here, or click to choose</p>
+              <p className="text-[13px] text-muted">Any Excel (.xlsx, .xls) or CSV file · column names like “Roll No”, “Name”, “Father Name” are found automatically</p>
+            </>
+          )}
+          <input
+            ref={inputRef}
+            type="file"
+            name="file"
+            accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+            className="sr-only"
+            onChange={(e) => {
+              setFileName(e.target.files?.[0]?.name ?? null);
+              changed();
+            }}
+          />
+        </label>
+      </div>
+
+      <div hidden={source !== "paste"} className="flex flex-col gap-1.5">
+        <textarea
+          name="text"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            changed();
+          }}
+          rows={8}
+          spellCheck={false}
+          placeholder={"Select the rows in Excel (with the heading row), press Ctrl+C, click here and press Ctrl+V.\n\nRoll No\tFull Name\tFather Name\tProgram\tSection\tParent Phone\n26-101\tMuhammad Ali\tMuhammad Aslam\tFSc Pre-Medical\t1A\t03001234567"}
+          className={fieldClass("h-auto min-h-40 py-2 font-mono text-[12px] whitespace-pre")}
+        />
+        <p className="text-[12px] text-muted">
+          {pastedRows > 0 ? `${pastedRows} lines pasted. ` : ""}Without a heading row, columns are read in this order: Roll No, Full Name, Father Name, Program, Section, Parent Phone, Student Phone, Status.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" disabled={pending || !ready} onClick={(e) => e.currentTarget.form && run(e.currentTarget.form, "check")}>
+          <ListChecks className="size-4" aria-hidden />
+          {pending ? "Working…" : "Check first"}
+        </Button>
+        <Button type="submit" variant="primary" disabled={pending || !ready}>
           <UploadCloud className="size-4" aria-hidden />
-          {pending ? "Importing…" : "Import students"}
+          {pending ? "Importing…" : report?.checked && report.ok ? `Import ${(report.inserted ?? 0) + (report.updated ?? 0)} students` : "Import students"}
         </Button>
       </div>
 
       {report && (
         <div className="flex flex-col gap-2">
           <FormMessage state={report} />
+          {report.checked && ((report.newPrograms?.length ?? 0) > 0 || (report.newSections?.length ?? 0) > 0) && (
+            <p className="rounded-xl bg-warning/15 px-4 py-2 text-[13px] text-ink ring-1 ring-warning/35">
+              Will be added as new
+              {report.newPrograms?.length ? ` program(s): ${report.newPrograms.join(", ")}` : ""}
+              {report.newPrograms?.length && report.newSections?.length ? ";" : ""}
+              {report.newSections?.length ? ` section(s): ${report.newSections.join(", ")}` : ""}. If this is a spelling mistake, fix it in the list first.
+            </p>
+          )}
+          {report.preview && report.preview.length > 0 && (
+            <div className="overflow-hidden rounded-xl border border-line">
+              <p className="border-b border-line px-4 py-2 text-[13px] font-medium">
+                Ready to import{report.preview.length < (report.inserted ?? 0) + (report.updated ?? 0) && ` (first ${report.preview.length})`}
+              </p>
+              <div className="max-h-72 overflow-auto">
+                <table className="w-full text-[13px]">
+                  <thead className="sticky top-0 bg-surface-2 text-left text-muted">
+                    <tr>
+                      {["Row", "Roll No", "Name", "Program", "Section", "Parent phone", ""].map((h) => (
+                        <th key={h} className="px-3 py-1.5 font-medium">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {report.preview.map((r) => (
+                      <tr key={r.rollNo}>
+                        <td className="px-3 py-1.5 text-muted tabular">{r.row}</td>
+                        <td className="px-3 py-1.5 font-mono">{r.rollNo}</td>
+                        <td className="px-3 py-1.5">{r.fullName}</td>
+                        <td className="px-3 py-1.5">{r.program}</td>
+                        <td className="px-3 py-1.5">{r.section}</td>
+                        <td className="px-3 py-1.5 tabular">{r.parentPhone}</td>
+                        <td className="px-3 py-1.5">
+                          <Pill tone={r.isNew ? "good" : "neutral"}>{r.isNew ? "New" : "Update"}</Pill>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           {report.errors && report.errors.length > 0 && (
             <div className="rounded-xl border border-line">
               <p className="border-b border-line px-4 py-2 text-[13px] font-medium">
-                Skipped rows{report.totalErrors! > report.errors.length && ` (first ${report.errors.length} of ${report.totalErrors})`}
+                {report.checked ? "Rows with problems (will be skipped)" : "Skipped rows"}
+                {report.totalErrors! > report.errors.length && ` (first ${report.errors.length} of ${report.totalErrors})`}
               </p>
               <ul className="max-h-48 divide-y divide-line overflow-y-auto text-[13px]">
                 {report.errors.map((e) => (

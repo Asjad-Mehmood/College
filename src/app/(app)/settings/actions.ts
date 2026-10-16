@@ -80,16 +80,23 @@ export async function setSchedule(schedule: "SUMMER" | "WINTER") {
 export async function uploadStudents(_: ImportReport | null, formData: FormData): Promise<ImportReport> {
   await requireUser(["ADMIN"]);
   const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, message: "Choose a file to upload." };
+  const text = String(formData.get("text") ?? "");
+  const source = formData.get("source") === "paste" ? text : file instanceof File && file.size > 0 ? file : null;
+  if (!source || (typeof source === "string" && !source.trim())) {
+    return { ok: false, message: formData.get("source") === "paste" ? "Paste the rows copied from Excel first." : "Choose a file to upload." };
   }
   // New students go into the batch chosen on the form (default: the selected or newest batch).
   const batchId = Number(formData.get("batchId")) || (await defaultBatchId());
-  const report = await importStudents(file, batchId, async (section) => {
-    const row = await prisma.section.findUnique({ where: { name: section }, select: { year: true } });
-    return batchForSectionYear(row?.year ?? null);
-  });
-  if (report.ok) refresh();
+  const report = await importStudents(
+    source,
+    batchId,
+    async (section) => {
+      const row = await prisma.section.findUnique({ where: { name: section }, select: { year: true } });
+      return batchForSectionYear(row?.year ?? null);
+    },
+    { dryRun: formData.get("mode") === "check" },
+  );
+  if (report.ok && !report.checked) refresh();
   return report;
 }
 

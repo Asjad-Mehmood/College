@@ -41,9 +41,10 @@ Notes:
 2. Deploy. `vercel-build` runs `prisma migrate deploy` before building, which creates the tables.
 3. Open the site and follow **Set up the portal** to create the Discipline In-Charge account (signs in with email). This only works
    while no accounts exist.
-4. In **Settings**, import the student list. Use the
-   [template](public/student-import-template.csv) as a guide. Headers are matched loosely, so `Roll No`,
-   `roll_no` and `Student ID` all work. Then add accounts for gate staff and the Principal.
+4. In **Settings**, import the student list: upload any Excel/CSV file or paste rows copied from Excel, click
+   **Check first** to preview, then import. **Download Excel template** gives a file with the college's own
+   programs and sections, an example and instructions. Headers are matched loosely (`Roll No`, `Student Name`,
+   `Father Contact`, …) and title rows above the headers are skipped. Then add accounts for gate staff and the Principal.
 
 ## Local development
 
