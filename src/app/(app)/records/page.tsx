@@ -2,47 +2,44 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import {
+  CalendarX,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
   FileText,
   Printer,
   SearchX,
-  Ticket,
 } from "lucide-react";
 import { FilterForm, PrintButton } from "@/components/filter-form";
-import { RecordManager } from "@/components/record-manager";
+import { LedgerTable } from "@/components/ledger-table";
+import { MonthCalendar } from "@/components/month-calendar";
 import {
-  Avatar,
   ButtonLink,
   Card,
   EmptyState,
   Input,
   PageHeader,
-  Pill,
   Select,
   Skeleton,
-  StrikeBadge,
-  Table,
-  Td,
-  Th,
   buttonClass,
   cx,
 } from "@/components/ui";
+import { ViewTabs, pickView } from "@/components/view-tabs";
 import { can, requireUser } from "@/lib/auth";
-import { ACTION_LABELS, REASON_LABELS } from "@/lib/labels";
+import { prisma } from "@/lib/prisma";
 import {
   PAGE_SIZE,
   RANGES,
   filtersToQuery,
   getClassOptions,
+  lateCountsForMonth,
+  monthOptions,
   parseRecordFilters,
   queryLedger,
   type RecordFilters,
 } from "@/lib/records";
 import { getSettings, type Settings } from "@/lib/settings";
-import { ordinal, strikeLevel } from "@/lib/strikes";
-import { formatDate, formatTime } from "@/lib/time";
+import { formatDate, formatMonth, fromDbDate, isValidMonth, isValidYmd, localParts, monthStart, nextMonthStart, toDbDate } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Late records" };
 
@@ -51,7 +48,7 @@ export default function RecordsPage(props: PageProps<"/records">) {
     <div>
       <PageHeader
         title="Late records"
-        description="Search, filter and export every late arrival."
+        description="Browse by month and date, or search every late arrival."
         actions={
           <Suspense>
             <ExportActions searchParams={props.searchParams} />
@@ -59,7 +56,7 @@ export default function RecordsPage(props: PageProps<"/records">) {
         }
       />
       <Suspense fallback={<LedgerSkeleton />}>
-        <Ledger searchParams={props.searchParams} />
+        <Content searchParams={props.searchParams} />
       </Suspense>
     </div>
   );
@@ -67,9 +64,135 @@ export default function RecordsPage(props: PageProps<"/records">) {
 
 type SP = PageProps<"/records">["searchParams"];
 
+async function Content({ searchParams }: { searchParams: SP }) {
+  await requireUser(["ADMIN", "PRINCIPAL"]);
+  const params = await searchParams;
+  const view = pickView(params);
+  return (
+    <>
+      <ViewTabs basePath="/records" view={view} />
+      {view === "search" ? <Ledger params={params} /> : <MonthView params={params} />}
+    </>
+  );
+}
+
+type Params = Awaited<SP>;
+
+async function MonthView({ params }: { params: Params }) {
+  const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const settings = await getSettings();
+  const today = localParts(new Date(), settings.timezone).date;
+  const thisMonth = today.slice(0, 7);
+  const monthParam = typeof params.month === "string" ? params.month : undefined;
+  const month = isValidMonth(monthParam) && monthParam <= thisMonth ? monthParam : thisMonth;
+
+  const [counts, earliest, students] = await Promise.all([
+    lateCountsForMonth(month),
+    prisma.lateRecord.findFirst({ orderBy: { lateDate: "asc" }, select: { lateDate: true } }),
+    prisma.lateRecord.groupBy({
+      by: ["rollNo"],
+      where: { lateDate: { gte: toDbDate(monthStart(`${month}-01`)), lt: toDbDate(nextMonthStart(`${month}-01`)) } },
+    }),
+  ]);
+
+  // Selected day: the one asked for, else today (this month) or the month's last day with records.
+  const dateParam = typeof params.date === "string" ? params.date : undefined;
+  const daysWithRecords = Object.keys(counts).sort();
+  const date =
+    isValidYmd(dateParam) && dateParam.startsWith(month) && dateParam <= today
+      ? dateParam
+      : month === thisMonth
+        ? today
+        : (daysWithRecords.at(-1) ?? null);
+
+  const monthTotal = Object.values(counts).reduce((a, b) => a + b, 0);
+  const busiest = daysWithRecords.reduce<string | null>((best, d) => (!best || counts[d] > counts[best] ? d : best), null);
+  const { rows } = date
+    ? await queryLedger({ ...parseRecordFilters({}), range: "custom", from: date, to: date }, settings, { limit: 1000 })
+    : { rows: [] };
+  const dayQs = date ? `range=custom&from=${date}&to=${date}` : "";
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card className="no-print overflow-hidden">
+        <MonthCalendar
+          basePath="/records"
+          month={month}
+          months={monthOptions(thisMonth, earliest ? fromDbDate(earliest.lateDate).slice(0, 7) : null)}
+          today={today}
+          selected={date}
+          counts={counts}
+          noun={["late arrival", "late arrivals"]}
+        />
+        <p className="border-t border-line px-5 py-3 text-[13px] text-ink-2">
+          <span className="font-semibold text-ink tabular">{monthTotal}</span> late {monthTotal === 1 ? "arrival" : "arrivals"} in{" "}
+          {formatMonth(`${month}-01`)} · {students.length} {students.length === 1 ? "student" : "students"} · on {daysWithRecords.length}{" "}
+          {daysWithRecords.length === 1 ? "day" : "days"}
+          {busiest && (
+            <>
+              {" "}
+              · busiest: {formatDate(busiest, { weekday: true })} ({counts[busiest]})
+            </>
+          )}
+        </p>
+      </Card>
+
+      {/* Shown only on paper */}
+      {date && (
+        <div className="hidden print:block">
+          <p className="text-lg font-semibold">{settings.collegeName} — Late arrivals</p>
+          <p className="text-sm">
+            {formatDate(date, { weekday: true })} · {rows.length} records
+          </p>
+        </div>
+      )}
+
+      <Card className="print-plain overflow-hidden">
+        {date ? (
+          <>
+            <div className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+              <div>
+                <h2 className="text-[15px] font-semibold">{formatDate(date, { weekday: true })}</h2>
+                <p className="text-[13px] text-muted">
+                  {rows.length} late {rows.length === 1 ? "arrival" : "arrivals"}
+                </p>
+              </div>
+              {rows.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <a className={buttonClass("secondary", "sm")} href={`/api/export?format=xlsx&${dayQs}`}>
+                    <FileSpreadsheet className="size-3.5" aria-hidden /> Excel
+                  </a>
+                  <a className={buttonClass("secondary", "sm")} href={`/api/export?format=csv&${dayQs}`}>
+                    <FileText className="size-3.5" aria-hidden /> CSV
+                  </a>
+                  <PrintButton>
+                    <Printer className="size-4" aria-hidden /> Print
+                  </PrintButton>
+                </div>
+              )}
+            </div>
+            {rows.length === 0 ? (
+              <EmptyState icon={<CalendarX className="size-5" />} title="No late arrivals on this day" />
+            ) : (
+              <LedgerTable rows={rows} settings={settings} manage={can.manageRecords(user.role)} showDate={false} />
+            )}
+          </>
+        ) : (
+          <EmptyState icon={<CalendarX className="size-5" />} title={`No late arrivals in ${formatMonth(`${month}-01`)}`}>
+            Pick another month above.
+          </EmptyState>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 async function ExportActions({ searchParams }: { searchParams: SP }) {
   await requireUser(["ADMIN", "PRINCIPAL"]);
-  const qs = filtersToQuery({ ...parseRecordFilters(await searchParams), page: 1 });
+  const params = await searchParams;
+  // The month view has its own per-day export buttons.
+  if (pickView(params) === "month") return null;
+  const qs = filtersToQuery({ ...parseRecordFilters(params), page: 1 });
   const sep = qs ? "&" : "";
   return (
     <>
@@ -95,9 +218,9 @@ function LedgerSkeleton() {
   );
 }
 
-async function Ledger({ searchParams }: { searchParams: SP }) {
+async function Ledger({ params }: { params: Params }) {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
-  const filters = parseRecordFilters(await searchParams);
+  const filters = parseRecordFilters(params);
   const settings = await getSettings();
   const [{ rows, total, range }, classes] = await Promise.all([
     queryLedger(filters, settings, { offset: (filters.page - 1) * PAGE_SIZE }),
@@ -141,87 +264,7 @@ async function Ledger({ searchParams }: { searchParams: SP }) {
             Try a wider date range or clear the search.
           </EmptyState>
         ) : (
-          <Table>
-            <thead>
-              <tr>
-                <Th>Student</Th>
-                <Th>Class</Th>
-                <Th>Date &amp; arrival</Th>
-                <Th>Strike</Th>
-                <Th>Reason / action</Th>
-                <Th>Fine</Th>
-                <Th className="no-print text-right">
-                  <span className="sr-only">Actions</span>
-                </Th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-surface-2/50">
-                  <Td>
-                    <Link href={`/students/${encodeURIComponent(r.rollNo)}`} className="group flex items-center gap-3">
-                      <span className="no-print">
-                        <Avatar name={r.fullName} photoUrl={r.photoUrl} size="sm" />
-                      </span>
-                      <span>
-                        <span className="block font-medium group-hover:underline">{r.fullName}</span>
-                        <span className="block font-mono text-[12px] text-muted">{r.rollNo}</span>
-                      </span>
-                    </Link>
-                  </Td>
-                  <Td>
-                    <span className="block">{r.program}</span>
-                    <span className="block text-[12px] text-muted">{r.section}</span>
-                  </Td>
-                  <Td className="whitespace-nowrap">
-                    <span className="block">{formatDate(r.lateDate)}</span>
-                    <span className="block text-[12px] text-muted tabular">
-                      {formatTime(r.arrivedAt, settings.timezone)} · {r.minutesLate} min late
-                    </span>
-                  </Td>
-                  <Td>
-                    <StrikeBadge level={strikeLevel(r.strikeNo, settings)} label={`${ordinal(r.strikeNo)} of ${r.monthCount}`} />
-                  </Td>
-                  <Td>
-                    <span className="block">{REASON_LABELS[r.reason]}</span>
-                    <span className="block text-[12px] text-muted">{ACTION_LABELS[r.actionTaken]}</span>
-                  </Td>
-                  <Td>
-                    {r.fineAmount > 0 ? (
-                      <Pill tone={r.finePaid ? "good" : "critical"}>
-                        Rs. {r.fineAmount} · {r.finePaid ? "Paid" : "Unpaid"}
-                      </Pill>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </Td>
-                  <Td className="no-print">
-                    <div className="flex justify-end gap-1.5">
-                      <a href={`/pass/${r.id}`} target="_blank" rel="noreferrer" className={buttonClass("ghost", "sm")} title="Print gate pass">
-                        <Ticket className="size-3.5" aria-hidden />
-                        <span className="sr-only">Gate pass</span>
-                      </a>
-                      {manage && (
-                        <RecordManager
-                          compact
-                          record={{
-                            id: r.id,
-                            fullName: r.fullName,
-                            dateLabel: formatDate(r.lateDate),
-                            reason: r.reason,
-                            actionTaken: r.actionTaken,
-                            fineAmount: r.fineAmount,
-                            finePaid: r.finePaid,
-                            remarks: r.remarks,
-                          }}
-                        />
-                      )}
-                    </div>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          <LedgerTable rows={rows} settings={settings} manage={manage} />
         )}
         {pages > 1 && (
           <div className="no-print flex items-center justify-between border-t border-line px-5 py-3">
@@ -256,7 +299,7 @@ function PageLink({
     return <span className={buttonClass("secondary", "sm", "pointer-events-none opacity-40")}>{children}</span>;
   }
   return (
-    <ButtonLink size="sm" href={`/records?${filtersToQuery(filters, { page })}`} scroll={false}>
+    <ButtonLink size="sm" href={`/records?view=search&${filtersToQuery(filters, { page })}`} scroll={false}>
       {children}
     </ButtonLink>
   );
@@ -280,6 +323,7 @@ function Filters({
   return (
     <Card className="no-print p-4">
       <FilterForm action="/records" className="flex flex-col gap-3">
+        <input type="hidden" name="view" value="search" />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
           <Input
             type="search"
@@ -338,7 +382,7 @@ function Filters({
             </label>
           ))}
           {filtersToQuery({ ...filters, page: 1 }) && (
-            <Link href="/records" className="ml-auto text-[13px] font-medium text-accent-ink hover:underline">
+            <Link href="/records?view=search" className="ml-auto text-[13px] font-medium text-accent-ink hover:underline">
               Clear filters
             </Link>
           )}

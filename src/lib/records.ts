@@ -3,7 +3,16 @@ import { Prisma } from "@/generated/prisma/client";
 import type { DisciplineAction, LateReason } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import type { Settings } from "@/lib/settings";
-import { addDays, fromDbDate, isValidYmd, localParts, monthStart } from "@/lib/time";
+import {
+  addDays,
+  addMonths,
+  fromDbDate,
+  isValidYmd,
+  localParts,
+  monthStart,
+  nextMonthStart,
+  toDbDate,
+} from "@/lib/time";
 
 export const RANGES = [
   { value: "today", label: "Today" },
@@ -73,6 +82,24 @@ export function filtersToQuery(f: RecordFilters, overrides: Partial<RecordFilter
   if (merged.habitual) qs.set("habitual", "1");
   if (merged.page > 1) qs.set("page", String(merged.page));
   return qs.toString();
+}
+
+/** Late arrivals per day of a month, as { "YYYY-MM-DD": count }. */
+export async function lateCountsForMonth(month: string) {
+  const rows = await prisma.lateRecord.groupBy({
+    by: ["lateDate"],
+    where: { lateDate: { gte: toDbDate(`${month}-01`), lt: toDbDate(nextMonthStart(`${month}-01`)) } },
+    _count: { _all: true },
+  });
+  return Object.fromEntries(rows.map((r) => [fromDbDate(r.lateDate), r._count._all]));
+}
+
+/** Months from the earliest record (or `fallbackMonths` back) up to `current`, newest first. */
+export function monthOptions(current: string, earliest: string | null, fallbackMonths = 12) {
+  const start = earliest && earliest < current ? earliest : addMonths(current, -(fallbackMonths - 1));
+  const out: string[] = [];
+  for (let m = current; m >= start && out.length < 120; m = addMonths(m, -1)) out.push(m);
+  return out;
 }
 
 /** Inclusive YYYY-MM-DD bounds for the selected range; undefined = unbounded. */

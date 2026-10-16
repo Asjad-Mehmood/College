@@ -4,7 +4,7 @@ import type { CaseStatus, Severity } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { RANGES, resolveDateRange, type RangeKey } from "@/lib/records";
 import type { Settings } from "@/lib/settings";
-import { toDbDate } from "@/lib/time";
+import { fromDbDate, nextMonthStart, toDbDate } from "@/lib/time";
 
 export type ViolationFilters = {
   q: string;
@@ -132,6 +132,18 @@ export async function queryViolations(
     total,
     range,
   };
+}
+
+export type ViolationRow = Awaited<ReturnType<typeof queryViolations>>["rows"][number];
+
+/** Violations per day of a month, as { "YYYY-MM-DD": count }. */
+export async function violationCountsForMonth(month: string) {
+  const rows = await prisma.violation.groupBy({
+    by: ["incidentDate"],
+    where: { incidentDate: { gte: toDbDate(`${month}-01`), lt: toDbDate(nextMonthStart(`${month}-01`)) } },
+    _count: { _all: true },
+  });
+  return Object.fromEntries(rows.map((r) => [fromDbDate(r.incidentDate), r._count._all]));
 }
 
 export async function getViolationTypes(opts: { activeOnly?: boolean } = {}) {

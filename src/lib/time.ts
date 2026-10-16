@@ -94,3 +94,27 @@ export function formatMonth(ymd: string): string {
     year: "numeric",
   }).format(toDbDate(ymd));
 }
+
+/** "2026-10" style month keys. */
+export function isValidMonth(value: string | undefined): value is string {
+  return !!value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+export function addMonths(month: string, n: number): string {
+  const d = toDbDate(`${month}-01`);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return fromDbDate(d).slice(0, 7);
+}
+
+/**
+ * The days of a month laid out Monday-first for a calendar grid; null cells
+ * pad the first and last weeks.
+ */
+export function monthGrid(month: string): (string | null)[] {
+  const first = toDbDate(`${month}-01`);
+  const lead = (first.getUTCDay() + 6) % 7;
+  const days: (string | null)[] = Array.from({ length: lead }, () => null);
+  for (let ymd = `${month}-01`; ymd.startsWith(month); ymd = addDays(ymd, 1)) days.push(ymd);
+  while (days.length % 7) days.push(null);
+  return days;
+}
