@@ -6,7 +6,6 @@ import { ArrowLeft, FilePlus2, FileWarning, History, MessageCircle, Phone, Shiel
 import { RecordManager } from "@/components/record-manager";
 import { StudentDialog } from "@/components/student-dialog";
 import {
-  Avatar,
   Card,
   CardHeader,
   EmptyState,
@@ -31,6 +30,7 @@ import { telLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
 import { getClassOptions } from "@/lib/records";
 import { getSectionOptions } from "@/lib/section-options";
+import { PhotoUploader } from "@/components/photo-uploader";
 import { SHIFT_LABELS, getSettings } from "@/lib/settings";
 import { STRIKE_LABELS, ordinal, strikeLevel } from "@/lib/strikes";
 import { formatDate, formatMonth, formatTime, fromDbDate, localParts } from "@/lib/time";
@@ -113,7 +113,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
     <div className="flex flex-col gap-5">
       <Card className="p-5 sm:p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-          <Avatar name={student.fullName} photoUrl={student.photoUrl} size="lg" />
+          <PhotoUploader rollNo={student.rollNo} name={student.fullName} photoUrl={student.photoUrl} editable={manage} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">{student.fullName}</h1>

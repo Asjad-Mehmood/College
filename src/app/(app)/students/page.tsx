@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, LayoutGrid, List, MessageCircle, Printer, Upload, UserX } from "lucide-react";
+import { ArrowLeft, ChevronLeft, GraduationCap, ChevronRight, Download, LayoutGrid, List, MessageCircle, Printer, Upload, UserX } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
 import type { StudentStatus } from "@/generated/prisma/enums";
 import { FilterForm } from "@/components/filter-form";
@@ -76,6 +76,9 @@ async function Header() {
           <>
             <Link href="/settings#import" className={buttonClass("secondary")}>
               <Upload className="size-4" aria-hidden /> Bulk import
+            </Link>
+            <Link href="/students/promote" className={buttonClass("secondary")}>
+              <GraduationCap className="size-4" aria-hidden /> End of session
             </Link>
             <ProgramsDialog programs={programRows.map((p) => ({ id: p.id, name: p.name, students: counts.get(p.name) ?? 0 }))} />
             <NewSectionDialog />

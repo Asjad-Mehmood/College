@@ -136,6 +136,7 @@ model Student {
   teams        TeamMember[]
   trials       TrialCandidate[]
   achievements Achievement[]
+  photo        StudentPhoto?
 
   @@index([program, section])
   @@map("students")
@@ -556,4 +557,16 @@ model ViolationAttachment {
 
   @@index([violationId])
   @@map("violation_attachments")
+}
+
+// A student's passport photo, kept in the database (small JPEG, resized on upload).
+model StudentPhoto {
+  rollNo    String   @id @map("roll_no") @db.VarChar(20)
+  mimeType  String   @map("mime_type") @db.VarChar(50)
+  data      Bytes
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [rollNo], references: [rollNo], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("student_photos")
 }

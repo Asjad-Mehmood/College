@@ -99,9 +99,13 @@ export function StudentDialog({ student, programs, sections, defaultSection }: {
             <Field label="Student phone">
               <Input name="studentPhone" type="tel" maxLength={20} defaultValue={student?.studentPhone ?? ""} />
             </Field>
-            <Field label="Photo URL" className="sm:col-span-2" hint="Link to the student's passport photo">
-              <Input name="photoUrl" type="url" maxLength={255} defaultValue={student?.photoUrl ?? ""} placeholder="https://…" />
-            </Field>
+            {student?.photoUrl?.startsWith("/api/student-photo/") ? (
+              <input type="hidden" name="photoUrl" value={student.photoUrl} />
+            ) : (
+              <Field label="Photo URL (optional)" className="sm:col-span-2" hint="Or add a photo from the camera on the student's profile">
+                <Input name="photoUrl" type="url" maxLength={255} defaultValue={student?.photoUrl ?? ""} placeholder="https://…" />
+              </Field>
+            )}
             <div className="sm:col-span-2">
               <FormMessage state={state} />
             </div>

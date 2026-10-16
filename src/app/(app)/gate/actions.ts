@@ -283,3 +283,76 @@ export async function logLateArrival(input: {
     notify,
   };
 }
+
+export type OfflineEntry = { id: string; rollNo: string; reason: LateReason; arrivedAt: string; remarks?: string };
+export type OfflineResult = { id: string; ok: boolean; message: string };
+
+/**
+ * Saves entries the gate phone recorded while offline. The arrival time is
+ * the phone's clock at the moment of entry; it must be within the last two
+ * days and not in the future.
+ */
+export async function syncOfflineArrivals(entries: OfflineEntry[]): Promise<OfflineResult[]> {
+  const user = await requireUser(["ADMIN", "GATE"]);
+  const settings = await getSettings();
+  const now = Date.now();
+  const results: OfflineResult[] = [];
+  for (const e of entries.slice(0, 200)) {
+    const at = new Date(e.arrivedAt);
+    if (Number.isNaN(at.getTime()) || at.getTime() > now + 5 * 60_000 || at.getTime() < now - 2 * 86_400_000) {
+      results.push({ id: e.id, ok: false, message: "The recorded time is not valid." });
+      continue;
+    }
+    if (!REASONS.some((r) => r.value === e.reason)) {
+      results.push({ id: e.id, ok: false, message: "Unknown reason." });
+      continue;
+    }
+    const raw = normalizeRoll(e.rollNo);
+    const student = await prisma.student.findFirst({ where: { rollNo: { equals: (await resolveRoll(raw)) ?? raw, mode: "insensitive" } } });
+    if (!student) {
+      results.push({ id: e.id, ok: false, message: `No student with roll number “${raw}”.` });
+      continue;
+    }
+    if (student.status !== "ACTIVE") {
+      results.push({ id: e.id, ok: false, message: `${student.fullName} is not active.` });
+      continue;
+    }
+    const local = localParts(at, settings.timezone);
+    const minutesLate = local.minutes - shiftStart(settings, await shiftOf(student.section)).startMinutes;
+    if (minutesLate <= settings.gracePeriodMins) {
+      results.push({
+        id: e.id,
+        ok: true,
+        message: minutesLate <= 0 ? `${student.fullName}: arrived on time, not counted.` : `${student.fullName}: within the grace period, not counted.`,
+      });
+      continue;
+    }
+    const monthRange = { gte: toDbDate(monthStart(local.date)), lt: toDbDate(nextMonthStart(local.date)) };
+    const strike = (await prisma.lateRecord.count({ where: { rollNo: student.rollNo, lateDate: monthRange } })) + 1;
+    try {
+      await prisma.lateRecord.create({
+        data: {
+          rollNo: student.rollNo,
+          lateDate: toDbDate(local.date),
+          arrivedAt: at,
+          minutesLate,
+          reason: e.reason,
+          actionTaken: strike >= settings.habitualThreshold ? "WRITTEN_WARNING" : "VERBAL_WARNING",
+          fineAmount: 0,
+          parentNotified: false,
+          remarks: [e.remarks?.trim(), "Recorded offline"].filter(Boolean).join(" · ").slice(0, 500),
+          recordedById: user.id,
+        },
+      });
+      results.push({ id: e.id, ok: true, message: `${student.fullName}: saved (${minutesLate} min late).` });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        results.push({ id: e.id, ok: true, message: `${student.fullName} was already logged that day.` });
+      } else {
+        results.push({ id: e.id, ok: false, message: "Couldn't save. Will try again." });
+      }
+    }
+  }
+  if (results.some((r) => r.ok)) refresh();
+  return results;
+}

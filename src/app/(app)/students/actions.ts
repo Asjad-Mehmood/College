@@ -37,7 +37,11 @@ export async function saveStudent(_: StudentFormState, formData: FormData): Prom
   if (!(await prisma.section.findUnique({ where: { name: data.section } }))) {
     return { ok: false, message: "Choose a section from the list. Create the section first if it doesn't exist." };
   }
-  if (data.photoUrl && !/^https?:\/\//i.test(data.photoUrl)) {
+  // An uploaded photo follows the student if the roll number changes.
+  if (data.photoUrl?.startsWith(PHOTO_PATH) && originalRollNo && originalRollNo !== data.rollNo) {
+    data.photoUrl = photoUrlFor(data.rollNo);
+  }
+  if (data.photoUrl && !data.photoUrl.startsWith(PHOTO_PATH) && !/^https?:\/\//i.test(data.photoUrl)) {
     return { ok: false, message: "Photo URL must start with http:// or https://" };
   }
 
@@ -143,4 +147,36 @@ export async function deleteProgram(id: number): Promise<StudentFormState> {
   await prisma.program.delete({ where: { id } });
   refresh();
   return { ok: true };
+}
+
+/* ---------- Photos ---------- */
+
+const PHOTO_PATH = "/api/student-photo/";
+const photoUrlFor = (rollNo: string) => `${PHOTO_PATH}${encodeURIComponent(rollNo)}?v=${Date.now().toString(36)}`;
+
+/** Saves a photo taken or chosen on the device (already resized to a small JPEG in the browser). */
+export async function uploadStudentPhoto(rollNo: string, formData: FormData): Promise<StudentFormState> {
+  await requireUser(["ADMIN"]);
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, message: "Choose a photo." };
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return { ok: false, message: "Use a JPG or PNG photo." };
+  if (file.size > 1024 * 1024) return { ok: false, message: "The photo is too large (over 1 MB)." };
+  if (!(await prisma.student.findUnique({ where: { rollNo }, select: { rollNo: true } }))) return { ok: false, message: "Student not found." };
+  const data = new Uint8Array(await file.arrayBuffer());
+  await prisma.$transaction([
+    prisma.studentPhoto.upsert({ where: { rollNo }, create: { rollNo, mimeType: file.type, data }, update: { mimeType: file.type, data } }),
+    prisma.student.update({ where: { rollNo }, data: { photoUrl: photoUrlFor(rollNo) } }),
+  ]);
+  refresh();
+  return { ok: true, message: "Photo saved." };
+}
+
+export async function removeStudentPhoto(rollNo: string): Promise<StudentFormState> {
+  await requireUser(["ADMIN"]);
+  await prisma.$transaction([
+    prisma.studentPhoto.deleteMany({ where: { rollNo } }),
+    prisma.student.update({ where: { rollNo }, data: { photoUrl: null } }),
+  ]);
+  refresh();
+  return { ok: true, message: "Photo removed." };
 }

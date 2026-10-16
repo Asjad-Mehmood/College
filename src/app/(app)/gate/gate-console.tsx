@@ -20,6 +20,7 @@ import type { LateReason } from "@/generated/prisma/enums";
 import { Avatar, Button, Card, StrikeBadge, cx, fieldClass } from "@/components/ui";
 import { REASONS } from "@/lib/labels";
 import { STRIKE_GUIDANCE, STRIKE_LABELS, ordinal } from "@/lib/strikes";
+import { OfflineGate, useOnline } from "./offline-gate";
 import {
   logLateArrival,
   lookupStudent,
@@ -46,6 +47,9 @@ function isTextField(el: Element | null) {
 }
 
 export function GateConsole() {
+  const online = useOnline();
+  const [netDown, setNetDown] = useState(false);
+  const offline = !online || netDown;
   const [roll, setRoll] = useState("");
   const [stage, setStage] = useState<Stage>({ kind: "idle" });
   const [reason, setReason] = useState<LateReason | null>(null);
@@ -76,7 +80,14 @@ export function GateConsole() {
     if (!value.trim()) return;
     setSaveError(null);
     startLookup(async () => {
-      const res = await lookupStudent(value);
+      let res: LookupResult;
+      try {
+        res = await lookupStudent(value);
+      } catch {
+        // No connection: switch to offline mode instead of failing.
+        setNetDown(true);
+        return;
+      }
       if (!res.ok) {
         setStage({ kind: "notFound", error: res.error, suggestions: res.suggestions });
         inputRef.current?.select();
@@ -122,7 +133,9 @@ export function GateConsole() {
     const data = stage.data;
     setSaveError(null);
     startSave(async () => {
-      const result = await logLateArrival({
+      let result: LogResult;
+      try {
+        result = await logLateArrival({
         rollNo: data.student.rollNo,
         reason,
         fine,
@@ -130,6 +143,10 @@ export function GateConsole() {
         notifyParent,
         remarks,
       });
+      } catch {
+        setNetDown(true);
+        return;
+      }
       if (!result.ok) {
         setSaveError(result.error);
         return;
@@ -162,8 +179,22 @@ export function GateConsole() {
     return () => window.removeEventListener("keydown", onKey);
   }, [stage, canSave, save, reset]);
 
+  if (offline) {
+    return (
+      <div className="flex min-w-0 flex-col gap-5">
+        <OfflineGate online={online} forceOffline={netDown} onBackOnline={() => setNetDown(false)} />
+        {online && netDown && (
+          <Button variant="secondary" onClick={() => setNetDown(false)}>
+            Internet is back — return to normal mode
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-w-0 flex-col gap-5">
+      <OfflineGate online={online} forceOffline={false} onBackOnline={() => {}} />
       {/* Roll number bar */}
       <Card className="p-4 sm:p-5">
         <form
