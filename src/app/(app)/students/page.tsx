@@ -17,7 +17,6 @@ import {
   Pill,
   Select,
   Skeleton,
-  StrikeBadge,
   Table,
   Td,
   Th,
@@ -29,9 +28,6 @@ import { STUDENT_STATUS_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getClassOptions } from "@/lib/records";
 import { YEAR_LABELS, getSectionOptions } from "@/lib/section-options";
-import { getSettings } from "@/lib/settings";
-import { strikeLevel } from "@/lib/strikes";
-import { localParts, monthStart, nextMonthStart, toDbDate } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Students" };
 
@@ -127,19 +123,10 @@ async function Content({ searchParams }: { searchParams: SP }) {
 
 async function SectionsOverview() {
   await requireUser(["ADMIN", "PRINCIPAL"]);
-  const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
-  const [sections, groups, lates] = await Promise.all([
+  const [sections, groups] = await Promise.all([
     getSectionOptions(),
     prisma.student.groupBy({ by: ["section", "program"], where: { status: "ACTIVE" }, _count: { _all: true } }),
-    prisma.$queryRaw<{ section: string; lates: bigint }[]>`
-      SELECT s.section, COUNT(*) AS lates
-      FROM late_records r JOIN students s ON s.roll_no = r.roll_no
-      WHERE r.late_date >= ${toDbDate(monthStart(today))} AND r.late_date <= ${toDbDate(today)}
-      GROUP BY s.section
-    `,
   ]);
-  const latesBySection = new Map(lates.map((l) => [l.section, Number(l.lates)]));
   const info = new Map<string, { count: number; programs: string[] }>();
   for (const g of groups) {
     const entry = info.get(g.section) ?? { count: 0, programs: [] };
@@ -156,12 +143,10 @@ async function SectionsOverview() {
     .map((g) => ({ ...g, list: sections.filter((x) => x.year === g.key) }))
     .filter((g) => g.list.length > 0);
 
-  const totalLate = [...latesBySection.values()].reduce((a, b) => a + b, 0);
   const emptySections = sections.filter((x) => !info.get(x.name)?.count).length;
   const stats = [
     { label: "Active students", value: total },
     { label: "Sections", value: sections.length },
-    { label: "Late this month", value: totalLate },
     { label: "Empty sections", value: emptySections },
   ];
 
@@ -175,7 +160,7 @@ async function SectionsOverview() {
         </Card>
       ) : (
         <>
-          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <dl className="grid grid-cols-3 gap-3">
             {stats.map((x) => (
               <Card key={x.label} className="px-4 py-3">
                 <dt className="text-[12px] text-muted">{x.label}</dt>
@@ -196,14 +181,12 @@ async function SectionsOverview() {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {g.list.map((sec) => {
                     const i = info.get(sec.name);
-                    const late = latesBySection.get(sec.name) ?? 0;
-                    const progs = [...new Set(i?.programs ?? [])];
+                                    const progs = [...new Set(i?.programs ?? [])];
                     return (
                       <Link key={sec.id} href={`/students?section=${encodeURIComponent(sec.name)}`} className="group">
                         <Card className="flex h-full flex-col p-4 transition-colors group-hover:border-line-strong">
                           <div className="flex items-start justify-between gap-2">
                             <p className="text-lg font-semibold tracking-tight group-hover:underline">{sec.name}</p>
-                            {late > 0 && <Pill tone="warning">{late} late</Pill>}
                           </div>
                           <p className="mt-2 text-2xl font-semibold tabular">
                             {i?.count ?? 0} <span className="text-[12px] font-normal text-muted">students</span>
@@ -236,9 +219,6 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
     | "ALL";
   const page = Math.max(1, Number.parseInt(str("page"), 10) || 1);
 
-  const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
-  const monthWhere = { lateDate: { gte: toDbDate(monthStart(today)), lt: toDbDate(nextMonthStart(today)) } };
 
   const digits = q.replace(/\D/g, "");
   const where: Prisma.StudentWhereInput = {
@@ -257,19 +237,17 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
     }),
   };
 
-  const [students, total, classes, sectionRow, sectionOpts, monthLates] = await Promise.all([
+  const [students, total, classes, sectionRow, sectionOpts] = await Promise.all([
     prisma.student.findMany({
       where,
       orderBy: [{ program: "asc" }, { section: "asc" }, { rollNo: "asc" }],
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: { _count: { select: { lateRecords: { where: monthWhere } } } },
     }),
     prisma.student.count({ where }),
     getClassOptions(),
     section ? prisma.section.findUnique({ where: { name: section } }) : null,
     getSectionOptions(),
-    section ? prisma.lateRecord.count({ where: { ...monthWhere, student: { section } } }) : 0,
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageHref = (p: number) => {
@@ -306,10 +284,6 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
             <div>
               <dt className="text-muted">Students shown</dt>
               <dd className="text-lg font-semibold tabular">{total}</dd>
-            </div>
-            <div>
-              <dt className="text-muted">Late this month</dt>
-              <dd className="text-lg font-semibold tabular">{monthLates}</dd>
             </div>
             <div>
               <dt className="text-muted">Programs</dt>
@@ -362,13 +336,11 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
                 <Th>Father / guardian</Th>
                 <Th>Class</Th>
                 <Th>Parent phone</Th>
-                <Th>This month</Th>
                 <Th>Status</Th>
               </tr>
             </thead>
             <tbody>
               {students.map((s) => {
-                const count = s._count.lateRecords;
                 return (
                   <tr key={s.rollNo} className="hover:bg-surface-2/50">
                     <Td>
@@ -386,13 +358,6 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
                       <span className="block text-[12px] text-muted">{s.section}</span>
                     </Td>
                     <Td className="font-mono text-[13px]">{s.parentPhone}</Td>
-                    <Td>
-                      {count > 0 ? (
-                        <StrikeBadge level={strikeLevel(count, settings)} label={`${count} late`} />
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </Td>
                     <Td>
                       <Pill tone={s.status === "ACTIVE" ? "neutral" : "warning"}>{STUDENT_STATUS_LABELS[s.status]}</Pill>
                     </Td>
