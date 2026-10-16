@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { formatDate, formatMinutes, fromDbDate, localParts, parseHHMM } from "@/lib/time";
 import { Attachments } from "./attachments";
+import { AddToIncident } from "./incident-students";
 import { CaseActions } from "./case-actions";
 
 export const metadata: Metadata = { title: "Violation case" };
@@ -38,7 +39,7 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
     include: { student: true, type: true, recordedBy: { select: { fullName: true } } },
   });
   if (!v) notFound();
-  const [others, total, files] = await Promise.all([
+  const [others, total, files, group] = await Promise.all([
     prisma.violation.findMany({
       where: { rollNo: v.rollNo, id: { not: v.id } },
       orderBy: { incidentDate: "desc" },
@@ -51,7 +52,15 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
       orderBy: { createdAt: "asc" },
       select: { id: true, fileName: true, mimeType: true, size: true, note: true, uploadedBy: true, createdAt: true },
     }),
+    v.incidentGroup
+      ? prisma.violation.findMany({
+          where: { incidentGroup: v.incidentGroup, id: { not: v.id } },
+          orderBy: { id: "asc" },
+          include: { student: { select: { fullName: true, section: true, photoUrl: true } } },
+        })
+      : [],
   ]);
+  const manage = can.manageRecords(user.role);
   const s = v.student;
   const fine = Number(v.fineAmount);
   const action =
@@ -142,12 +151,43 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
             )}
           </div>
         </Card>
+        {(group.length > 0 || manage) && (
+          <Card className="no-print">
+            <CardHeader
+              title={group.length > 0 ? `Students in this incident (${group.length + 1})` : "Other students involved"}
+              description={group.length > 0 ? "Each student has their own case, fine and status." : "Was anyone else involved? Add them to this incident."}
+            />
+            {group.length > 0 && (
+              <ul className="divide-y divide-line border-b border-line">
+                {group.map((g) => (
+                  <li key={g.id}>
+                    <Link href={`/violations/${g.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-surface-2/60">
+                      <Avatar name={g.student.fullName} photoUrl={g.student.photoUrl} size="sm" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{g.student.fullName}</span>
+                        <span className="block text-[12px] text-muted">
+                          <span className="font-mono">{g.rollNo}</span> · {g.student.section} · case #{g.id}
+                        </span>
+                      </span>
+                      <Pill tone={g.status === "OPEN" ? "accent" : "neutral"}>{g.status === "OPEN" ? "Open" : "Closed"}</Pill>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {manage && (
+              <div className="p-5">
+                <AddToIncident caseId={v.id} />
+              </div>
+            )}
+          </Card>
+        )}
         <Card className="no-print">
           <CardHeader title="Documents" description="Applications, undertakings and letters kept with this case." />
           <div className="p-5">
             <Attachments
               caseId={v.id}
-              manage={can.manageRecords(user.role)}
+              manage={manage}
               files={files.map((f) => ({ ...f, createdAt: f.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) }))}
             />
           </div>
@@ -163,7 +203,7 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
         {can.manageRecords(user.role) && (
           <Card className="p-5">
             <p className="mb-3 text-sm font-semibold">Manage case</p>
-            <CaseActions id={v.id} status={v.status} fineAmount={fine} finePaid={v.finePaid} />
+            <CaseActions id={v.id} status={v.status} fineAmount={fine} finePaid={v.finePaid} openInIncident={group.filter((g) => g.status === "OPEN").length} />
           </Card>
         )}
       </div>

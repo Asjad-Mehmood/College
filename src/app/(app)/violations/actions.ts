@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ViolationAction } from "@/generated/prisma/enums";
@@ -151,42 +152,102 @@ async function validate(input: ViolationInput, allowInactiveTypeId?: number): Pr
   };
 }
 
-export type CreateResult =
-  | { ok: true; id: number; notify: { message: string; whatsapp: string; sms: string } | null }
-  | { ok: false; error: string };
+export type SavedCase = {
+  id: number;
+  rollNo: string;
+  fullName: string;
+  notify: { message: string; whatsapp: string; sms: string } | null;
+};
 
-export async function createViolation(rollNo: string, input: ViolationInput): Promise<CreateResult> {
+export type CreateResult = { ok: true; id: number; cases: SavedCase[] } | { ok: false; error: string };
+
+/** Record one incident for one or more students: one case per student, linked by an incident group. */
+export async function createViolation(rollNos: string[], input: ViolationInput): Promise<CreateResult> {
   const user = await requireUser(["ADMIN"]);
-  const student = await prisma.student.findUnique({ where: { rollNo } });
-  if (!student) return { ok: false, error: "Student not found." };
+  const unique = [...new Set(rollNos)].slice(0, 50);
+  if (unique.length === 0) return { ok: false, error: "Add at least one student." };
+  const students = await prisma.student.findMany({ where: { rollNo: { in: unique } } });
+  if (students.length !== unique.length) return { ok: false, error: "One of the students was not found." };
+  const inactive = students.find((s) => s.status !== "ACTIVE");
+  if (inactive) return { ok: false, error: `${inactive.fullName} is not active (struck off or graduated).` };
   const v = await validate(input);
   if (!v.ok) return v;
   const { typeName, ...data } = v.data;
+  const incidentGroup = unique.length > 1 ? randomUUID() : null;
+  const settings = input.notifyParent ? await getSettings() : null;
 
-  const violation = await prisma.violation.create({
-    data: { ...data, rollNo: student.rollNo, parentNotified: !!input.notifyParent, recordedById: user.id },
+  const ordered = unique.map((r) => students.find((s) => s.rollNo === r)!);
+  const cases = await prisma.$transaction(
+    ordered.map((student) =>
+      prisma.violation.create({
+        data: { ...data, rollNo: student.rollNo, incidentGroup, parentNotified: !!input.notifyParent, recordedById: user.id },
+        select: { id: true, rollNo: true },
+      }),
+    ),
+  );
+
+  const saved: SavedCase[] = cases.map((c) => {
+    const student = ordered.find((s) => s.rollNo === c.rollNo)!;
+    let notify = null;
+    if (settings) {
+      const message = violationParentMessage({
+        studentName: student.fullName,
+        rollNo: student.rollNo,
+        className: `${student.program} ${student.section}`,
+        typeName,
+        date: formatDate(input.incidentDate),
+        action:
+          data.actionTaken === "SUSPENSION"
+            ? `Suspension for ${data.suspensionDays} day(s)`
+            : VIOLATION_ACTION_LABELS[data.actionTaken],
+        fineAmount: data.fineAmount,
+        collegeName: settings.collegeName,
+      });
+      notify = { message, whatsapp: whatsAppLink(student.parentPhone, message), sms: smsLink(student.parentPhone, message) };
+    }
+    return { id: c.id, rollNo: student.rollNo, fullName: student.fullName, notify };
   });
-
-  let notify = null;
-  if (input.notifyParent) {
-    const settings = await getSettings();
-    const message = violationParentMessage({
-      studentName: student.fullName,
-      rollNo: student.rollNo,
-      className: `${student.program} ${student.section}`,
-      typeName,
-      date: formatDate(input.incidentDate),
-      action:
-        data.actionTaken === "SUSPENSION"
-          ? `Suspension for ${data.suspensionDays} day(s)`
-          : VIOLATION_ACTION_LABELS[data.actionTaken],
-      fineAmount: data.fineAmount,
-      collegeName: settings.collegeName,
-    });
-    notify = { message, whatsapp: whatsAppLink(student.parentPhone, message), sms: smsLink(student.parentPhone, message) };
-  }
   refresh();
-  return { ok: true, id: violation.id, notify };
+  return { ok: true, id: saved[0].id, cases: saved };
+}
+
+/** Add another student to an existing incident: copies the case details for them. */
+export async function addStudentToIncident(caseId: number, rawRoll: string): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser(["ADMIN"]);
+  const base = await prisma.violation.findUnique({ where: { id: caseId } });
+  if (!base) return { ok: false, error: "Case not found." };
+  const roll = (await resolveRoll(rawRoll.trim().toUpperCase())) ?? rawRoll.trim().toUpperCase();
+  const student = await prisma.student.findFirst({ where: { rollNo: { equals: roll, mode: "insensitive" } } });
+  if (!student) return { ok: false, error: `No student found with roll number “${rawRoll.trim()}”.` };
+  if (student.status !== "ACTIVE") return { ok: false, error: `${student.fullName} is not active.` };
+  const group = base.incidentGroup ?? randomUUID();
+  if (student.rollNo === base.rollNo) return { ok: false, error: "This student is already in the case." };
+  if (base.incidentGroup) {
+    const dup = await prisma.violation.findFirst({ where: { incidentGroup: group, rollNo: student.rollNo } });
+    if (dup) return { ok: false, error: `${student.fullName} is already in this incident.` };
+  }
+  await prisma.$transaction([
+    ...(base.incidentGroup ? [] : [prisma.violation.update({ where: { id: base.id }, data: { incidentGroup: group } })]),
+    prisma.violation.create({
+      data: {
+        rollNo: student.rollNo,
+        typeId: base.typeId,
+        severity: base.severity,
+        incidentDate: base.incidentDate,
+        incidentTime: base.incidentTime,
+        location: base.location,
+        description: base.description,
+        reportedBy: base.reportedBy,
+        actionTaken: base.actionTaken,
+        suspensionDays: base.suspensionDays,
+        fineAmount: base.fineAmount,
+        incidentGroup: group,
+        recordedById: user.id,
+      },
+    }),
+  ]);
+  refresh();
+  return { ok: true };
 }
 
 export async function updateViolation(id: number, input: ViolationInput): Promise<{ ok: boolean; error?: string }> {
@@ -213,12 +274,15 @@ export async function setViolationFinePaid(id: number, paid: boolean) {
   refresh();
 }
 
-export async function closeViolation(id: number, note: string) {
+export async function closeViolation(id: number, note: string, wholeIncident = false) {
   await requireUser(["ADMIN"]);
-  await prisma.violation.update({
-    where: { id },
-    data: { status: "CLOSED", closedAt: new Date(), closingNote: note.trim().slice(0, 300) || null },
-  });
+  const data = { status: "CLOSED" as const, closedAt: new Date(), closingNote: note.trim().slice(0, 300) || null };
+  const v = await prisma.violation.findUnique({ where: { id }, select: { incidentGroup: true } });
+  if (wholeIncident && v?.incidentGroup) {
+    await prisma.violation.updateMany({ where: { incidentGroup: v.incidentGroup, status: "OPEN" }, data });
+  } else {
+    await prisma.violation.update({ where: { id }, data });
+  }
   refresh();
 }
 

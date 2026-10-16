@@ -254,12 +254,15 @@ model Violation {
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
 
-  student     Student               @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
-  type        ViolationType         @relation(fields: [typeId], references: [id])
-  recordedBy  User                  @relation(fields: [recordedById], references: [id])
-  attachments ViolationAttachment[]
+  student       Student               @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
+  type          ViolationType         @relation(fields: [typeId], references: [id])
+  recordedBy    User                  @relation(fields: [recordedById], references: [id])
+  // Cases recorded together for one incident share this key (null = single student).
+  incidentGroup String?               @map("incident_group") @db.VarChar(36)
+  attachments   ViolationAttachment[]
 
   @@index([incidentDate])
+  @@index([incidentGroup])
   @@index([rollNo])
   @@index([status])
   @@map("violations")

@@ -17,17 +17,20 @@ export function CaseActions({
   status,
   fineAmount,
   finePaid,
+  openInIncident = 0,
 }: {
   id: number;
   status: "OPEN" | "CLOSED";
   fineAmount: number;
   finePaid: boolean;
+  openInIncident?: number;
 }) {
   const [pending, start] = useTransition();
   const [closing, setClosing] = useState(false);
   const [note, setNote] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [closeAll, setCloseAll] = useState(true);
 
   return (
     <div className="flex flex-col gap-4">
@@ -59,7 +62,7 @@ export function CaseActions({
                     return;
                   }
                 }
-                await closeViolation(id, note);
+                await closeViolation(id, note, openInIncident > 0 && closeAll);
                 setClosing(false);
               });
             }}
@@ -70,6 +73,12 @@ export function CaseActions({
               <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,application/pdf,image/*" className="text-[13px] text-ink-2 file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-[13px] file:font-medium file:text-ink" />
             </label>
             <input type="hidden" name="note" value="Attached when closing the case" />
+            {openInIncident > 0 && (
+              <label className="flex items-center gap-2 text-[13px] text-ink-2">
+                <input type="checkbox" checked={closeAll} onChange={(e) => setCloseAll(e.target.checked)} className="accent-[var(--accent)]" />
+                Also close the other {openInIncident} open {openInIncident === 1 ? "case" : "cases"} in this incident
+              </label>
+            )}
             {uploadError && <p className="text-[12px] text-danger-ink">{uploadError}</p>}
             <div className="flex justify-end gap-2">
               <Button type="button" size="sm" variant="ghost" onClick={() => setClosing(false)}>

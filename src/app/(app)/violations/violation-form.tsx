@@ -13,6 +13,7 @@ import {
   Printer,
   Search,
   TriangleAlert,
+  X,
 } from "lucide-react";
 import type { Severity, ViolationAction } from "@/generated/prisma/enums";
 import {
@@ -55,7 +56,8 @@ type Props =
     };
 
 export function ViolationForm(props: Props) {
-  const [student, setStudent] = useState<ViolationStudent | null>(null);
+  const [students, setStudents] = useState<ViolationStudent[]>([]);
+  const student = students.at(-1) ?? null;
   const [saved, setSaved] = useState<Extract<CreateResult, { ok: true }> | null>(null);
   const [formKey, setFormKey] = useState(0);
 
@@ -76,76 +78,115 @@ export function ViolationForm(props: Props) {
     );
   }
 
-  if (saved && student) {
+  if (saved) {
+    const many = saved.cases.length > 1;
     return (
       <Card className="overflow-hidden">
         <div className="flex items-center gap-3 border-b border-line bg-good/8 px-5 py-4">
           <CheckCircle2 className="size-6 text-good" aria-hidden />
           <div>
-            <p className="font-semibold">Violation recorded</p>
+            <p className="font-semibold">{many ? `Violation recorded for ${saved.cases.length} students` : "Violation recorded"}</p>
             <p className="text-[13px] text-ink-2">
-              {student.fullName} · case #{saved.id}
+              {many ? "One case per student, linked as one incident" : `${saved.cases[0].fullName} · case #${saved.id}`}
             </p>
           </div>
         </div>
-        <div className="flex flex-col gap-4 p-5">
-          {saved.notify && (
-            <div className="rounded-xl border border-line bg-surface-2/60 p-4">
-              <p className="text-[12px] font-medium tracking-wide text-muted uppercase">Message to parent</p>
-              <p className="mt-1.5 text-sm leading-relaxed">{saved.notify.message}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <a href={saved.notify.whatsapp} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#1f8f4e] px-4 text-sm font-medium text-white hover:bg-[#1a7a43]">
-                  <MessageCircle className="size-4" aria-hidden /> Send on WhatsApp
-                </a>
-                <a href={saved.notify.sms} className={buttonClass("secondary")}>
-                  <MessageSquareText className="size-4" aria-hidden /> Send SMS
-                </a>
+        <ul className="divide-y divide-line">
+          {saved.cases.map((c) => (
+            <li key={c.id} className="flex flex-col gap-3 px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm">
+                  <span className="font-semibold">{c.fullName}</span> <span className="font-mono text-muted">{c.rollNo}</span> · case #{c.id}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {c.notify && (
+                    <>
+                      <a href={c.notify.whatsapp} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#1f8f4e] px-3 text-[13px] font-medium text-white hover:bg-[#1a7a43]">
+                        <MessageCircle className="size-4" aria-hidden /> WhatsApp parent
+                      </a>
+                      <a href={c.notify.sms} className={buttonClass("secondary", "sm")}>
+                        <MessageSquareText className="size-4" aria-hidden /> SMS
+                      </a>
+                    </>
+                  )}
+                  <a href={`/notice/${c.id}`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
+                    <Printer className="size-4" aria-hidden /> Notice
+                  </a>
+                  <Link href={`/violations/${c.id}`} className={buttonClass("secondary", "sm")}>
+                    <FileText className="size-4" aria-hidden /> Open case
+                  </Link>
+                </div>
               </div>
-            </div>
-          )}
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <a href={`/notice/${saved.id}`} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
-                <Printer className="size-4" aria-hidden /> Print parent notice
-              </a>
-              <Link href={`/violations/${saved.id}`} className={buttonClass("secondary")}>
-                <FileText className="size-4" aria-hidden /> Open case
-              </Link>
-            </div>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setSaved(null);
-                setStudent(null);
-                setFormKey((k) => k + 1);
-              }}
-            >
-              <Plus className="size-4" aria-hidden /> Record another
-            </Button>
-          </div>
+              {c.notify && !many && <p className="rounded-xl bg-surface-2/60 p-3 text-sm leading-relaxed">{c.notify.message}</p>}
+            </li>
+          ))}
+        </ul>
+        <div className="flex justify-end border-t border-line p-5">
+          <Button
+            variant="primary"
+            onClick={() => {
+              setSaved(null);
+              setStudents([]);
+              setFormKey((k) => k + 1);
+            }}
+          >
+            <Plus className="size-4" aria-hidden /> Record another
+          </Button>
         </div>
       </Card>
     );
   }
 
+  const inactive = students.find((x) => x.status !== "ACTIVE");
   return (
     <div className="flex flex-col gap-5">
       <StudentLookup
         key={formKey}
         student={student}
-        onFound={setStudent}
+        count={students.length}
+        onFound={(s) => {
+          if (s) setStudents((list) => [...list.filter((x) => x.rollNo !== s.rollNo), s]);
+        }}
         initialRoll={formKey === 0 ? props.initialRoll : undefined}
       />
-      {student && (
+      {students.length > 0 && (
+        <Card className="p-4">
+          <p className="mb-2 text-[13px] font-medium text-ink-2">
+            {students.length === 1 ? "Student in this case" : `${students.length} students in this incident — one case is recorded for each`}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {students.map((x) => (
+              <span key={x.rollNo} className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2/60 py-1 pr-1.5 pl-1">
+                <Avatar name={x.fullName} photoUrl={x.photoUrl} size="sm" />
+                <span className="text-[13px]">
+                  {x.fullName} <span className="font-mono text-muted">{x.rollNo}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setStudents((list) => list.filter((y) => y.rollNo !== x.rollNo))}
+                  className="rounded-full p-0.5 text-muted hover:bg-surface-3 hover:text-ink"
+                  aria-label={`Remove ${x.fullName}`}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-[12px] text-muted">To add another student involved, type their roll number above and press Add.</p>
+        </Card>
+      )}
+      {students.length > 0 && (
         <DetailsForm
-          key={student.rollNo}
           types={props.types}
           today={props.today}
-          submitLabel="Record violation"
+          submitLabel={students.length > 1 ? `Record for ${students.length} students` : "Record violation"}
           withNotify
-          disabledReason={student.status !== "ACTIVE" ? "This student is not active (struck off or graduated)." : undefined}
+          disabledReason={inactive ? `${inactive.fullName} is not active (struck off or graduated). Remove them to continue.` : undefined}
           onSubmit={async (input) => {
-            const res = await createViolation(student.rollNo, input);
+            const res = await createViolation(
+              students.map((x) => x.rollNo),
+              input,
+            );
             if (!res.ok) return res.error;
             setSaved(res);
             return null;
@@ -158,10 +199,12 @@ export function ViolationForm(props: Props) {
 
 function StudentLookup({
   student,
+  count,
   onFound,
   initialRoll,
 }: {
   student: ViolationStudent | null;
+  count: number;
   onFound: (s: ViolationStudent | null) => void;
   initialRoll?: string;
 }) {
@@ -186,7 +229,7 @@ function StudentLookup({
     start(async () => {
       const res = await findStudentForViolation(value);
       if (res.ok) {
-        setRoll(res.student.rollNo);
+        setRoll("");
         setError(null);
         setSuggestions([]);
         onFound(res.student);
@@ -200,7 +243,10 @@ function StudentLookup({
 
   return (
     <Card>
-      <CardHeader title="1. Student" description="Type the student's roll number." />
+      <CardHeader
+        title="1. Students"
+        description={count === 0 ? "Type the student's roll number. Several students can be added for one incident." : "Add another student involved, or continue below."}
+      />
       <div className="p-5">
         <form
           className="flex gap-2"
@@ -219,13 +265,13 @@ function StudentLookup({
               autoComplete="off"
               spellCheck={false}
               aria-label="Roll number"
-              placeholder="Roll number"
+              placeholder={count === 0 ? "Roll number" : "Add another roll number"}
               className={fieldClass("h-12 pl-10 font-mono tracking-wide uppercase placeholder:font-sans placeholder:normal-case placeholder:tracking-normal")}
             />
           </div>
           <Button type="submit" variant="primary" disabled={pending || !roll.trim()} className="h-12 px-5">
             {pending ? <Loader2 className="size-4.5 animate-spin" aria-hidden /> : <ArrowRight className="size-4.5" aria-hidden />}
-            Find
+            {count === 0 ? "Find" : "Add"}
           </Button>
         </form>
 
