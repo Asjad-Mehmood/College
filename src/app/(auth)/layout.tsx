@@ -1,9 +1,11 @@
 import { BrandMark } from "@/components/brand";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_NAME, APP_TAGLINE } from "@/lib/app";
 
 export default function AuthLayout({ children }: LayoutProps<"/">) {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
+    <div className="relative flex min-h-dvh flex-col items-center justify-center px-4 py-10">
+      <ThemeToggle className="absolute top-4 right-4" />
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
         <BrandMark className="size-12" />
         <div>

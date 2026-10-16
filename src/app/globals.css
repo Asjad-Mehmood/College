@@ -27,8 +27,9 @@
   --shadow-lg: 0 12px 32px -12px rgb(11 11 11 / 0.18), 0 2px 6px rgb(11 11 11 / 0.05);
 }
 
+/* Dark mode follows the device unless the user picked a theme in the header. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --page: #0d0d0d;
     --surface: #1a1a19;
@@ -49,6 +50,28 @@
     --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
     --shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 0.7);
   }
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #222220;
+    --surface-3: #2c2c2a;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #8f8d86;
+    --line: #2c2c2a;
+    --line-strong: #44443f;
+    --accent: #3987e5;
+    --accent-hover: #5598e7;
+    --accent-ink: #86b6ef;
+    --accent-soft: #15253a;
+    --on-accent: #ffffff;
+    --success-ink: #3fbf3f;
+    --danger-ink: #f08080;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 0.7);
 }
 
 @theme inline {
@@ -90,7 +113,8 @@ body {
 
 /* Printing: hide app chrome, keep the content. */
 @media print {
-  :root {
+  :root,
+  :root[data-theme="dark"] {
     color-scheme: light;
     --page: #ffffff;
     --surface: #ffffff;

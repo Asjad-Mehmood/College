@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { logout } from "@/app/(auth)/actions";
 import { BrandMark } from "@/components/brand";
 import { BottomNav, LogoutButton, MobileMenu, SideNav } from "@/components/nav";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, Skeleton } from "@/components/ui";
 import { APP_NAME, APP_TAGLINE } from "@/lib/app";
 import { requireUser } from "@/lib/auth";
@@ -40,7 +41,10 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           <BrandMark className="size-8" />
           <p className="ml-1 text-sm font-semibold">{APP_NAME}</p>
         </div>
-        <LogoutButton action={logout} compact />
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <LogoutButton action={logout} compact />
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-4 pt-6 pb-28 sm:px-6 lg:px-8 lg:pb-10">
@@ -88,6 +92,7 @@ async function UserCard() {
         <p className="truncate text-[13px] font-medium">{user.fullName}</p>
         <p className="truncate text-[12px] text-muted">{ROLE_LABELS[user.role]}</p>
       </div>
+      <ThemeToggle />
       <LogoutButton action={logout} compact />
     </div>
   );
