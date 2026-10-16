@@ -201,7 +201,7 @@ function StudentLookup({
 
   return (
     <Card>
-      <CardHeader title="1. Student" description="Type the roll number or scan the ID card." />
+      <CardHeader title="1. Student" description="Type the student's roll number." />
       <div className="p-5">
         <form
           className="flex gap-2"

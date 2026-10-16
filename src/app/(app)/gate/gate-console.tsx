@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import type { LateReason } from "@/generated/prisma/enums";
 import { Avatar, Button, Card, StrikeBadge, cx, inputClass } from "@/components/ui";
-import { CameraScanButton } from "@/components/camera-scan";
 import { REASONS } from "@/lib/labels";
 import { STRIKE_GUIDANCE, STRIKE_LABELS, ordinal } from "@/lib/strikes";
 import {
@@ -169,16 +168,10 @@ export function GateConsole() {
               spellCheck={false}
               inputMode="text"
               aria-label="Roll number"
-              placeholder="Scan ID card or type roll number"
+              placeholder="Type roll number"
               className={cx(inputClass, "h-14 rounded-xl pl-12 font-mono text-lg tracking-wide uppercase placeholder:font-sans placeholder:normal-case placeholder:tracking-normal")}
             />
           </div>
-          <CameraScanButton
-            onDetected={(value) => {
-              setRoll(value);
-              lookup(value);
-            }}
-          />
           <Button type="submit" variant="primary" size="lg" disabled={looking || !roll.trim()} className="px-5">
             {looking ? <Loader2 className="size-5 animate-spin" aria-hidden /> : <ArrowRight className="size-5" aria-hidden />}
             <span className="hidden sm:inline">Find</span>
@@ -393,7 +386,7 @@ function IdleHint() {
       </div>
       <p className="font-medium">Ready for the next late arrival</p>
       <p className="mx-auto mt-1 max-w-md text-[13px] text-muted">
-        Scan the barcode on the student&apos;s ID card or type the roll number and press Enter. Pick a
+        Type the student&apos;s roll number and press Enter. Pick a
         reason with keys <kbd className="font-mono">1</kbd>–<kbd className="font-mono">5</kbd>, then press
         Enter again to save.
       </p>

@@ -12,7 +12,7 @@ Built with Next.js 16, Prisma 7 and Neon Postgres, and deployed on Vercel.
 
 | Screen | Who | Purpose |
 | --- | --- | --- |
-| **Gate check-in** (`/gate`) | Gate staff, Discipline In-Charge | Scan or type a roll number. The screen shows the student's photo, the month's strike count and minutes late. Choose a reason with keys **1–5** and save with **Enter**. Gate staff can then message the parent on WhatsApp/SMS and print a classroom entry slip. |
+| **Gate check-in** (`/gate`) | Gate staff, Discipline In-Charge | Type a roll number. The screen shows the student's photo, the month's strike count and minutes late. Choose a reason with keys **1–5** and save with **Enter**. Gate staff can then message the parent on WhatsApp/SMS and print a classroom entry slip. |
 | **Dashboard** (`/dashboard`) | In-Charge, Principal | Late today vs yesterday, habitual offenders, lates this month, pending fines, a 30-day trend and a by-program breakdown. |
 | **Late records** (`/records`) | In-Charge, Principal | Searchable ledger filtered by date range, program, section, strike level, habitual offenders or unpaid fines. Exports to Excel or CSV and prints to PDF. |
 | **Record violation** (`/violations/new`) | In-Charge | Find the student by roll number (shows past violations), choose the violation type (sets severity and suggested fine), enter date, time, place, what happened and who reported it, then the action taken (warning, fine, parent meeting, suspension with days, referral to the Discipline Committee). Then message the parent and print a notice. |

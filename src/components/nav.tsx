@@ -6,11 +6,11 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ClipboardList,
+  DoorOpen,
   FilePlus2,
   LayoutDashboard,
   LogOut,
   Menu,
-  ScanLine,
   Settings,
   ShieldAlert,
   Users,
@@ -34,7 +34,7 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
   {
     title: "Late arrivals",
     items: [
-      { href: "/gate", label: "Gate check-in", short: "Gate", icon: ScanLine, roles: ["ADMIN", "GATE"], mobile: true },
+      { href: "/gate", label: "Gate check-in", short: "Gate", icon: DoorOpen, roles: ["ADMIN", "GATE"], mobile: true },
       { href: "/records", label: "Late records", short: "Lates", icon: ClipboardList, roles: ADMIN_VIEW, mobile: true },
     ],
   },

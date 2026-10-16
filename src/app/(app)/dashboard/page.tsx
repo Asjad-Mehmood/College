@@ -8,9 +8,9 @@ import {
   Banknote,
   CalendarDays,
   Clock,
+  DoorOpen,
   Inbox,
   Minus,
-  ScanLine,
   ShieldAlert,
   Users,
 } from "lucide-react";
@@ -71,7 +71,7 @@ async function Header() {
       actions={
         can.logLate(user.role) && (
           <ButtonLink href="/gate" variant="primary">
-            <ScanLine className="size-4" aria-hidden /> Open gate mode
+            <DoorOpen className="size-4" aria-hidden /> Open gate mode
           </ButtonLink>
         )
       }
