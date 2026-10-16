@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Edit trip" };
 
 export default function EditTripPage(props: PageProps<"/trips/[id]/edit">) {
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <Suspense fallback={<Skeleton className="h-[600px] rounded-2xl" />}>
         <Edit params={props.params} />
       </Suspense>
@@ -27,10 +27,11 @@ async function Edit({ params }: { params: PageProps<"/trips/[id]/edit">["params"
   await requireUser(["ADMIN"]);
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
-  const [trip, { programs }, settings] = await Promise.all([
+  const [trip, { programs }, settings, counts] = await Promise.all([
     prisma.trip.findUnique({ where: { id } }),
     getClassOptions(),
     getSettings(),
+    prisma.student.groupBy({ by: ["program"], where: { status: "ACTIVE" }, _count: { _all: true } }),
   ]);
   if (!trip) notFound();
   const d = (x: Date | null) => (x ? fromDbDate(x) : "");
@@ -43,6 +44,7 @@ async function Edit({ params }: { params: PageProps<"/trips/[id]/edit">["params"
       <TripForm
         today={localParts(new Date(), settings.timezone).date}
         programs={[...new Set([...programs, ...trip.programs])]}
+        programCounts={Object.fromEntries(counts.map((c) => [c.program, c._count._all]))}
         values={{
           id: trip.id,
           title: trip.title,
