@@ -108,8 +108,8 @@ function DashboardSkeleton() {
 }
 
 async function Dashboard() {
-  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const settings = await getSettings();
   const today = (await getScope()).anchor;
   const yesterday = addDays(today, -1);
@@ -385,8 +385,8 @@ async function Dashboard() {
 }
 
 async function TripsPanel() {
-  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const trips = await prisma.trip.findMany({
     where: { status: { in: ["OPEN", "CLOSED", "DEPARTED"] } },
     orderBy: [{ departDate: "asc" }],
@@ -434,8 +434,8 @@ async function TripsPanel() {
 }
 
 async function ViolationsPanel() {
-  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const today = (await getScope()).anchor;
   const monthWhere = { incidentDate: { gte: toDbDate(monthStart(today)), lte: toDbDate(today) } };
   const [thisMonth, severeThisMonth, open, recent] = await Promise.all([
@@ -566,8 +566,8 @@ async function QuickActions() {
 }
 
 async function AttentionAndOverview() {
-  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const settings = await getSettings();
   const today = (await getScope()).anchor;
   const mStart = toDbDate(monthStart(today));
@@ -683,8 +683,8 @@ async function AttentionAndOverview() {
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 async function Patterns() {
-  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const today = (await getScope()).anchor;
   const from = toDbDate(addDays(today, -89));
   const mStart = toDbDate(monthStart(today));

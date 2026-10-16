@@ -59,8 +59,8 @@ export default function StudentsPage(props: PageProps<"/students">) {
 }
 
 async function Header() {
-  const prisma = await scoped();
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const scope = await getScope();
   const [{ programs }, sections, programRows, programCounts] = await Promise.all([
     getClassOptions(),

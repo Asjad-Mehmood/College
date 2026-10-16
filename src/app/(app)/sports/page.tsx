@@ -22,8 +22,8 @@ export default function SportsPage() {
 }
 
 async function Content() {
-  const prisma = await scoped();
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const admin = can.administer(user.role);
   const scope = await getScope();
   const today = scope.anchor;

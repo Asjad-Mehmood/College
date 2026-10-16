@@ -64,6 +64,9 @@ async function ensureDefaults(today: string) {
 }
 
 export const getScope = cache(async (): Promise<Scope> => {
+  // Read the request cookie before touching the database: this marks every
+  // page using the scope as rendered per request (never prerendered at build).
+  const raw = (await cookies()).get(SCOPE_COOKIE)?.value ?? "";
   const settings = await getSettings();
   const today = localParts(new Date(), settings.timezone).date;
   await ensureDefaults(today);
@@ -83,7 +86,6 @@ export const getScope = cache(async (): Promise<Scope> => {
     students: countBy.get(b.id) ?? 0,
   }));
 
-  const raw = (await cookies()).get(SCOPE_COOKIE)?.value ?? "";
   const [yearId, batchId] = raw.split(".").map(Number);
   const current = years.find((y) => y.from <= today && today <= y.to) ?? years[0];
   const year = years.find((y) => y.id === yearId) ?? current;

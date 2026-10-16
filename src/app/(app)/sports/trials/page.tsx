@@ -23,8 +23,8 @@ export default function TrialsPage() {
 }
 
 async function Content() {
-  const prisma = await scoped();
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const settings = await getSettings();
   const [trials, sports] = await Promise.all([
     prisma.trial.findMany({ orderBy: { trialDate: "desc" }, take: 100, include: { sport: true, candidates: { select: { result: true } } } }),
