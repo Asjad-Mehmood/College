@@ -1,8 +1,8 @@
 -- CreateEnum
-CREATE TYPE "StudyYear" AS ENUM ('FIRST', 'SECOND');
+DO $$ BEGIN CREATE TYPE "StudyYear" AS ENUM ('FIRST', 'SECOND'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateTable
-CREATE TABLE "sections" (
+CREATE TABLE IF NOT EXISTS "sections" (
     "id" SERIAL NOT NULL,
     "name" VARCHAR(20) NOT NULL,
     "year" "StudyYear",
@@ -12,7 +12,7 @@ CREATE TABLE "sections" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sections_name_key" ON "sections"("name");
+CREATE UNIQUE INDEX IF NOT EXISTS "sections_name_key" ON "sections"("name");
 
 
 -- Sections already used by students become section records; the year is

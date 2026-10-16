@@ -4,18 +4,18 @@
 DELETE FROM "teams";
 
 -- DropIndex
-DROP INDEX "teams_sport_id_season_category_key";
+DROP INDEX IF EXISTS "teams_sport_id_season_category_key";
 
 -- AlterTable
-ALTER TABLE "teams" DROP COLUMN "active",
-DROP COLUMN "category",
-DROP COLUMN "coach",
-DROP COLUMN "season",
-ADD COLUMN     "event_id" INTEGER NOT NULL,
-ADD COLUMN     "manager" VARCHAR(100);
+ALTER TABLE "teams" DROP COLUMN IF EXISTS "active",
+DROP COLUMN IF EXISTS "category",
+DROP COLUMN IF EXISTS "coach",
+DROP COLUMN IF EXISTS "season",
+ADD COLUMN IF NOT EXISTS     "event_id" INTEGER NOT NULL,
+ADD COLUMN IF NOT EXISTS     "manager" VARCHAR(100);
 
 -- CreateTable
-CREATE TABLE "sports_events" (
+CREATE TABLE IF NOT EXISTS "sports_events" (
     "id" SERIAL NOT NULL,
     "name" VARCHAR(120) NOT NULL,
     "start_date" DATE NOT NULL,
@@ -28,11 +28,11 @@ CREATE TABLE "sports_events" (
 );
 
 -- CreateIndex
-CREATE INDEX "sports_events_start_date_idx" ON "sports_events"("start_date");
+CREATE INDEX IF NOT EXISTS "sports_events_start_date_idx" ON "sports_events"("start_date");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "teams_event_id_sport_id_key" ON "teams"("event_id", "sport_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "teams_event_id_sport_id_key" ON "teams"("event_id", "sport_id");
 
 -- AddForeignKey
-ALTER TABLE "teams" ADD CONSTRAINT "teams_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "sports_events"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'teams_event_id_fkey') THEN ALTER TABLE "teams" ADD CONSTRAINT "teams_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "sports_events"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$;
 

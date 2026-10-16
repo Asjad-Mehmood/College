@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "programs" (
+CREATE TABLE IF NOT EXISTS "programs" (
     "id" SERIAL NOT NULL,
     "name" VARCHAR(50) NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -8,7 +8,7 @@ CREATE TABLE "programs" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "programs_name_key" ON "programs"("name");
+CREATE UNIQUE INDEX IF NOT EXISTS "programs_name_key" ON "programs"("name");
 
 
 -- Starter programs, plus any program already used by a student.

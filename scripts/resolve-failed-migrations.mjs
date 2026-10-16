@@ -2,9 +2,10 @@
 //
 // If a migration was started but never finished (for example the connection
 // to Neon dropped mid-way), Prisma records it as failed and refuses every
-// later deploy with P3009. Each migration here is applied as one transaction,
-// so a failed one changed nothing: it is safe to mark it rolled back and let
-// `migrate deploy` apply it again. The recorded error is printed first so the
+// later deploy with P3009. A failed migration may have been applied only
+// partway, so migrations that can fail this way are written to be re-runnable
+// (IF EXISTS / IF NOT EXISTS). This script marks the failed one rolled back so
+// `migrate deploy` runs it again; the recorded error is printed first so the
 // real cause is visible in the build log.
 import { execFileSync } from "node:child_process";
 import { config } from "dotenv";
