@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { EditableLetter } from "@/components/editable-letter";
 import { PrintToolbar } from "@/components/print-toolbar";
 import { Skeleton, cx } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -117,16 +118,9 @@ async function Letter({
           </a>
         </nav>
       </PrintToolbar>
-      <p className="no-print mx-auto mt-4 max-w-[210mm] px-4 text-center text-[13px] text-muted">
-        Tip: click anywhere on the letter to edit the wording before printing.
-      </p>
       <div className="px-4 py-6 print:p-0">
         <style>{`@page { size: A4; margin: 0; }`}</style>
-        <article
-          contentEditable
-          suppressContentEditableWarning
-          className="mx-auto max-w-[210mm] bg-white px-[16mm] py-[16mm] text-[14px] leading-relaxed text-black shadow-pop outline-none print:max-w-none print:px-[20mm] print:py-[18mm] print:shadow-none"
-        >
+        <EditableLetter storageKey={`${kind}-${v.id}`} className="mx-auto max-w-[210mm] bg-white px-[16mm] py-[16mm] text-[14px] leading-relaxed text-black shadow-pop print:max-w-none print:px-[20mm] print:py-[18mm] print:shadow-none">
           <header className="border-b-2 border-black pb-4 text-center">
             <p className="text-2xl font-bold tracking-tight uppercase">{settings.collegeName}</p>
             {settings.collegeAddress && <p className="text-[13px]">{settings.collegeAddress}</p>}
@@ -288,7 +282,7 @@ async function Letter({
               </div>
             </>
           )}
-        </article>
+        </EditableLetter>
       </div>
     </>
   );

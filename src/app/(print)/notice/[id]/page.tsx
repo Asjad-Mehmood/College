@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { EditableLetter } from "@/components/editable-letter";
 import { PrintToolbar } from "@/components/print-toolbar";
 import { Skeleton } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -41,7 +42,7 @@ async function Notice({ params }: { params: PageProps<"/notice/[id]">["params"] 
   return (
     <div className="px-4 py-8 print:p-0">
       <style>{`@page { size: A4; margin: 0; }`}</style>
-      <article className="mx-auto max-w-[210mm] bg-white px-[16mm] py-[16mm] text-[14px] leading-relaxed text-black shadow-pop print:max-w-none print:px-[20mm] print:py-[18mm] print:shadow-none">
+      <EditableLetter storageKey={`notice-${v.id}`} className="mx-auto max-w-[210mm] bg-white px-[16mm] py-[16mm] text-[14px] leading-relaxed text-black shadow-pop print:max-w-none print:px-[20mm] print:py-[18mm] print:shadow-none">
         <header className="border-b-2 border-black pb-4 text-center">
           <p className="text-2xl font-bold tracking-tight uppercase">{settings.collegeName}</p>
           {settings.collegeAddress && <p className="text-[13px]">{settings.collegeAddress}</p>}
@@ -139,7 +140,7 @@ async function Notice({ params }: { params: PageProps<"/notice/[id]">["params"] 
             <p>Date: ______________</p>
           </div>
         </div>
-      </article>
+      </EditableLetter>
     </div>
   );
 }
