@@ -6,7 +6,7 @@ import { removeStudentPhoto, uploadStudentPhoto } from "@/app/(app)/students/act
 import { Avatar } from "@/components/ui";
 
 /** Shrinks a photo to at most `max` px on its longer side and re-encodes it as JPEG. */
-async function shrink(file: File, max = 480): Promise<Blob> {
+export async function shrink(file: File, max = 480): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");

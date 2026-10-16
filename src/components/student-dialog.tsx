@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Pencil, UserPlus, X } from "lucide-react";
+import { shrink } from "@/components/photo-uploader";
+import { Camera, Image as ImageIcon, Pencil, Upload, UserPlus, X } from "lucide-react";
 import { saveStudent } from "@/app/(app)/students/actions";
 import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
@@ -32,7 +33,29 @@ export function StudentDialog({
   defaultBatchId?: number | null; student?: StudentFields; programs: string[]; sections: { name: string; year: "FIRST" | "SECOND" | null; shift?: "MORNING" | "EVENING" }[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const editing = !!student;
-  const [state, onSubmit, pending] = useFormAction(saveStudent, null, { resetOnSuccess: !editing });
+  const [state, onSubmitForm, pending] = useFormAction(saveStudent, null, { resetOnSuccess: !editing });
+  const photoRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [photoNote, setPhotoNote] = useState<string | null>(null);
+
+  async function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !photoRef.current) return;
+    try {
+      const small = new File([await shrink(file)], "photo.jpg", { type: "image/jpeg" });
+      const dt = new DataTransfer();
+      dt.items.add(small);
+      photoRef.current.files = dt.files;
+      setPreview(URL.createObjectURL(small));
+      setPhotoNote(`Photo ready (${Math.max(1, Math.round(small.size / 1024))} KB). It is saved with the student.`);
+    } catch {
+      setPhotoNote("Couldn't read that photo. Try another one.");
+    }
+  }
+  const onSubmit = onSubmitForm;
   // The academic year starts in August; a batch is in 1st year in the year it joined.
   const now = new Date();
   const yearStart = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
@@ -45,7 +68,18 @@ export function StudentDialog({
 
   return (
     <>
-      <Button variant={editing ? "secondary" : "primary"} onClick={() => dialogRef.current?.showModal()}>
+      <Button
+        variant={editing ? "secondary" : "primary"}
+        onClick={() => {
+          // A new student starts without the previous one's photo.
+          if (!editing && state?.ok) {
+            setPreview(null);
+            setPhotoNote(null);
+            if (photoRef.current) photoRef.current.value = "";
+          }
+          dialogRef.current?.showModal();
+        }}
+      >
         {editing ? <Pencil className="size-4" aria-hidden /> : <UserPlus className="size-4" aria-hidden />}
         {editing ? "Edit" : "Add student"}
       </Button>
@@ -160,13 +194,31 @@ export function StudentDialog({
             <Field label="Student phone">
               <Input name="studentPhone" type="tel" maxLength={20} defaultValue={student?.studentPhone ?? ""} />
             </Field>
-            {student?.photoUrl?.startsWith("/api/student-photo/") ? (
-              <input type="hidden" name="photoUrl" value={student.photoUrl} />
-            ) : (
-              <Field label="Photo URL (optional)" className="sm:col-span-2" hint="Or add a photo from the camera on the student's profile">
-                <Input name="photoUrl" type="url" maxLength={255} defaultValue={student?.photoUrl ?? ""} placeholder="https://…" />
-              </Field>
-            )}
+            <input type="hidden" name="photoUrl" value={student?.photoUrl ?? ""} />
+            <div className="sm:col-span-2">
+              <p className="mb-1.5 text-[13px] font-medium text-ink-2">Photo (optional)</p>
+              <div className="flex items-center gap-4">
+                <span className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- local preview of the chosen photo */}
+                  {preview || student?.photoUrl ? <img src={preview ?? student?.photoUrl ?? ""} alt="" className="size-full object-cover" /> : <ImageIcon className="size-6 text-muted" aria-hidden />}
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => cameraRef.current?.click()}>
+                      <Camera className="size-3.5" aria-hidden /> Take photo
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
+                      <Upload className="size-3.5" aria-hidden /> Choose file
+                    </Button>
+                  </div>
+                  <p className="text-[12px] text-muted">{photoNote ?? "JPG or PNG. It is made smaller automatically."}</p>
+                </div>
+              </div>
+              {/* The resized photo is put into this input, so it is sent with the form. */}
+              <input ref={photoRef} type="file" name="photo" className="hidden" tabIndex={-1} aria-hidden />
+              <input ref={cameraRef} type="file" accept="image/*" capture="user" className="hidden" onChange={pickPhoto} />
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
+            </div>
             <div className="sm:col-span-2">
               <FormMessage state={state} />
             </div>

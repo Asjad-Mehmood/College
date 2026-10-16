@@ -79,6 +79,19 @@ export async function saveStudent(_: StudentFormState, formData: FormData): Prom
     throw e;
   }
 
+  // A photo chosen in the dialog (already resized in the browser) is saved with the student.
+  const photo = formData.get("photo");
+  if (photo instanceof File && photo.size > 0) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(photo.type) || photo.size > 1024 * 1024) {
+      return { ok: false, message: "Student saved, but the photo could not be used (JPG/PNG, under 1 MB)." };
+    }
+    const bytes = new Uint8Array(await photo.arrayBuffer());
+    await prisma.$transaction([
+      prisma.studentPhoto.upsert({ where: { rollNo: data.rollNo }, create: { rollNo: data.rollNo, mimeType: photo.type, data: bytes }, update: { mimeType: photo.type, data: bytes } }),
+      prisma.student.update({ where: { rollNo: data.rollNo }, data: { photoUrl: photoUrlFor(data.rollNo) } }),
+    ]);
+  }
+
   if (originalRollNo && originalRollNo !== data.rollNo) {
     redirect(`/students/${encodeURIComponent(data.rollNo)}`);
   }
