@@ -17,20 +17,20 @@ export function CaseActions({
   status,
   fineAmount,
   finePaid,
-  openInIncident = 0,
+  groupSize = 1,
 }: {
   id: number;
   status: "OPEN" | "CLOSED";
   fineAmount: number;
   finePaid: boolean;
-  openInIncident?: number;
+  /** Students sharing this case */
+  groupSize?: number;
 }) {
   const [pending, start] = useTransition();
   const [closing, setClosing] = useState(false);
   const [note, setNote] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [closeAll, setCloseAll] = useState(true);
 
   return (
     <div className="flex flex-col gap-4">
@@ -62,7 +62,7 @@ export function CaseActions({
                     return;
                   }
                 }
-                await closeViolation(id, note, openInIncident > 0 && closeAll);
+                await closeViolation(id, note);
                 setClosing(false);
               });
             }}
@@ -73,12 +73,6 @@ export function CaseActions({
               <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,application/pdf,image/*" className="text-[13px] text-ink-2 file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-[13px] file:font-medium file:text-ink" />
             </label>
             <input type="hidden" name="note" value="Attached when closing the case" />
-            {openInIncident > 0 && (
-              <label className="flex items-center gap-2 text-[13px] text-ink-2">
-                <input type="checkbox" checked={closeAll} onChange={(e) => setCloseAll(e.target.checked)} className="accent-[var(--accent)]" />
-                Also close the other {openInIncident} open {openInIncident === 1 ? "case" : "cases"} in this incident
-              </label>
-            )}
             {uploadError && <p className="text-[12px] text-danger-ink">{uploadError}</p>}
             <div className="flex justify-end gap-2">
               <Button type="button" size="sm" variant="ghost" onClick={() => setClosing(false)}>
@@ -105,14 +99,21 @@ export function CaseActions({
       </Link>
 
       {confirmDelete ? (
-        <div className="flex items-center justify-between gap-2 rounded-lg bg-critical/5 px-3 py-2">
-          <span className="text-[13px] text-danger-ink">Delete this case permanently?</span>
-          <div className="flex gap-2">
+        <div className="flex flex-col gap-2 rounded-lg bg-critical/5 px-3 py-2">
+          <span className="text-[13px] text-danger-ink">
+            {groupSize > 1 ? `This case has ${groupSize} students. Delete it for everyone, or only remove this student?` : "Delete this case permanently?"}
+          </span>
+          <div className="flex flex-wrap justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)}>
               Keep
             </Button>
+            {groupSize > 1 && (
+              <Button size="sm" variant="secondary" disabled={pending} onClick={() => start(() => deleteViolation(id, true))}>
+                Remove this student only
+              </Button>
+            )}
             <Button size="sm" variant="danger" disabled={pending} onClick={() => start(() => deleteViolation(id))}>
-              Delete
+              {groupSize > 1 ? "Delete whole case" : "Delete"}
             </Button>
           </div>
         </div>

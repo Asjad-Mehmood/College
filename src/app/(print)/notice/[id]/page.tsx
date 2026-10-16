@@ -30,7 +30,16 @@ async function Notice({ params }: { params: PageProps<"/notice/[id]">["params"] 
   const settings = await getSettings();
   const v = await prisma.violation.findUnique({ where: { id }, include: { student: true, type: true } });
   if (!v) notFound();
-  const previous = await prisma.violation.count({ where: { rollNo: v.rollNo, id: { not: v.id }, incidentDate: { lte: v.incidentDate } } });
+  const [previous, others] = await Promise.all([
+    prisma.violation.count({ where: { rollNo: v.rollNo, id: { not: v.id }, incidentDate: { lte: v.incidentDate } } }),
+    v.incidentGroup
+      ? prisma.violation.findMany({
+          where: { incidentGroup: v.incidentGroup, id: { not: v.id } },
+          orderBy: { id: "asc" },
+          select: { rollNo: true, student: { select: { fullName: true, section: true } } },
+        })
+      : [],
+  ]);
   const s = v.student;
   const today = localParts(new Date(), settings.timezone).date;
   const date = fromDbDate(v.incidentDate);
@@ -85,6 +94,14 @@ async function Notice({ params }: { params: PageProps<"/notice/[id]">["params"] 
               ["Date & time", `${formatDate(date, { weekday: true })}${v.incidentTime ? `, ${formatMinutes(parseHHMM(v.incidentTime))}` : ""}`],
               ...(v.location ? [["Place", v.location]] : []),
               ["What happened", v.description],
+              ...(others.length > 0
+                ? [
+                    [
+                      "Students involved",
+                      [`${s.fullName} (${s.rollNo}, ${s.section})`, ...others.map((o) => `${o.student.fullName} (${o.rollNo}, ${o.student.section})`)].join("\n"),
+                    ],
+                  ]
+                : []),
               ["Action taken", action],
               ...(fine > 0 ? [["Fine", `Rs. ${fine.toLocaleString()} ${v.finePaid ? "(paid)" : "(please pay at the Discipline Office)"}`]] : []),
             ].map(([k, val]) => (

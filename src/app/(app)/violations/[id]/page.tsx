@@ -48,7 +48,8 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
     }),
     prisma.violation.count({ where: { rollNo: v.rollNo } }),
     prisma.violationAttachment.findMany({
-      where: { violationId: v.id },
+      // Documents are shared by every student in the case.
+      where: { violation: v.incidentGroup ? { incidentGroup: v.incidentGroup } : { id: v.id } },
       orderBy: { createdAt: "asc" },
       select: { id: true, fileName: true, mimeType: true, size: true, note: true, uploadedBy: true, createdAt: true },
     }),
@@ -72,7 +73,10 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
         <Card className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[13px] text-muted">Case #{v.id}</p>
+              <p className="text-[13px] text-muted">
+                Case #{v.id}
+                {group.length > 0 && ` · shared case with ${group.length} other ${group.length === 1 ? "student" : "students"}`}
+              </p>
               <h1 className="mt-0.5 text-2xl font-semibold tracking-tight">{v.type.name}</h1>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -154,8 +158,12 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
         {(group.length > 0 || manage) && (
           <Card className="no-print">
             <CardHeader
-              title={group.length > 0 ? `Students in this incident (${group.length + 1})` : "Other students involved"}
-              description={group.length > 0 ? "Each student has their own case, fine and status." : "Was anyone else involved? Add them to this incident."}
+              title={group.length > 0 ? `Students in this case (${group.length + 1})` : "Other students involved"}
+              description={
+                group.length > 0
+                  ? "One shared case: edits, closing and documents apply to all of them. Each student's fine is paid separately."
+                  : "Was anyone else involved? Add them to this case."
+              }
             />
             {group.length > 0 && (
               <ul className="divide-y divide-line border-b border-line">
@@ -223,7 +231,7 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
         {can.manageRecords(user.role) && (
           <Card className="p-5">
             <p className="mb-3 text-sm font-semibold">Manage case</p>
-            <CaseActions id={v.id} status={v.status} fineAmount={fine} finePaid={v.finePaid} openInIncident={group.filter((g) => g.status === "OPEN").length} />
+            <CaseActions id={v.id} status={v.status} fineAmount={fine} finePaid={v.finePaid} groupSize={group.length + 1} />
           </Card>
         )}
       </div>

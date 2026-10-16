@@ -241,6 +241,9 @@ export async function addStudentToIncident(caseId: number, rawRoll: string): Pro
         actionTaken: base.actionTaken,
         suspensionDays: base.suspensionDays,
         fineAmount: base.fineAmount,
+        status: base.status,
+        closedAt: base.closedAt,
+        closingNote: base.closingNote,
         incidentGroup: group,
         recordedById: user.id,
       },
@@ -258,8 +261,9 @@ export async function updateViolation(id: number, input: ViolationInput): Promis
   if (!v.ok) return v;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- only used for messages
   const { typeName, ...data } = v.data;
-  await prisma.violation.update({
-    where: { id },
+  // Students recorded together share one case: the details change for all of them.
+  await prisma.violation.updateMany({
+    where: existing.incidentGroup ? { incidentGroup: existing.incidentGroup } : { id },
     data: {
       ...data,
       ...(data.fineAmount === 0 ? { finePaid: false, finePaidAt: null } : {}),
@@ -274,27 +278,37 @@ export async function setViolationFinePaid(id: number, paid: boolean) {
   refresh();
 }
 
-export async function closeViolation(id: number, note: string, wholeIncident = false) {
+/** The case and every case recorded with it for the same incident. */
+async function wholeCase(id: number) {
+  const v = await prisma.violation.findUnique({ where: { id }, select: { incidentGroup: true } });
+  return v?.incidentGroup ? { incidentGroup: v.incidentGroup } : { id };
+}
+
+export async function closeViolation(id: number, note: string) {
   await requireUser(["ADMIN"]);
   const data = { status: "CLOSED" as const, closedAt: new Date(), closingNote: note.trim().slice(0, 300) || null };
-  const v = await prisma.violation.findUnique({ where: { id }, select: { incidentGroup: true } });
-  if (wholeIncident && v?.incidentGroup) {
-    await prisma.violation.updateMany({ where: { incidentGroup: v.incidentGroup, status: "OPEN" }, data });
-  } else {
-    await prisma.violation.update({ where: { id }, data });
-  }
+  await prisma.violation.updateMany({ where: await wholeCase(id), data });
   refresh();
 }
 
 export async function reopenViolation(id: number) {
   await requireUser(["ADMIN"]);
-  await prisma.violation.update({ where: { id }, data: { status: "OPEN", closedAt: null, closingNote: null } });
+  await prisma.violation.updateMany({ where: await wholeCase(id), data: { status: "OPEN", closedAt: null, closingNote: null } });
   refresh();
 }
 
-export async function deleteViolation(id: number) {
+/** Deletes the whole case (all students recorded together), or removes just this student. */
+export async function deleteViolation(id: number, onlyThisStudent = false) {
   await requireUser(["ADMIN"]);
-  await prisma.violation.delete({ where: { id } });
+  if (onlyThisStudent) {
+    const v = await prisma.violation.findUnique({ where: { id }, select: { incidentGroup: true } });
+    const others = v?.incidentGroup ? await prisma.violation.findFirst({ where: { incidentGroup: v.incidentGroup, id: { not: id } }, select: { id: true } }) : null;
+    // Keep the shared documents with the rest of the case.
+    if (others) await prisma.violationAttachment.updateMany({ where: { violationId: id }, data: { violationId: others.id } });
+    await prisma.violation.delete({ where: { id } });
+    redirect(others ? `/violations/${others.id}` : "/violations");
+  }
+  await prisma.violation.deleteMany({ where: await wholeCase(id) });
   redirect("/violations");
 }
 

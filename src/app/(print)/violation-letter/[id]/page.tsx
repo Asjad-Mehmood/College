@@ -47,8 +47,12 @@ async function Letter({
   const [previous, others] = await Promise.all([
     prisma.violation.count({ where: { rollNo: v.rollNo, id: { not: v.id }, incidentDate: { lte: v.incidentDate } } }),
     v.incidentGroup
-      ? prisma.violation.count({ where: { incidentGroup: v.incidentGroup, id: { not: v.id } } })
-      : 0,
+      ? prisma.violation.findMany({
+          where: { incidentGroup: v.incidentGroup, id: { not: v.id } },
+          orderBy: { id: "asc" },
+          select: { rollNo: true, student: { select: { fullName: true, section: true } } },
+        })
+      : [],
   ]);
   const s = v.student;
   const today = localParts(new Date(), settings.timezone).date;
@@ -72,7 +76,14 @@ async function Letter({
           ["Date & time", when],
           ...(v.location ? [["Place", v.location]] : []),
           ["What happened", v.description],
-          ...(others > 0 ? [["Others involved", `${others} other student${others === 1 ? "" : "s"} in the same matter`]] : []),
+          ...(others.length > 0
+            ? [
+                [
+                  "Students involved",
+                  [`${s.fullName} (${s.rollNo}, ${s.section})`, ...others.map((o) => `${o.student.fullName} (${o.rollNo}, ${o.student.section})`)].join("\n"),
+                ],
+              ]
+            : []),
           ["Action taken", action],
           ...(fine > 0 ? [["Fine", `Rs. ${fine.toLocaleString()} ${v.finePaid ? "(paid)" : "(please pay at the Discipline Office)"}`]] : []),
         ].map(([key, val]) => (

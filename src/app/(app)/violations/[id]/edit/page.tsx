@@ -34,12 +34,18 @@ async function Edit({ params }: { params: PageProps<"/violations/[id]/edit">["pa
   ]);
   if (!violation) notFound();
   const s = violation.student;
+  const others = violation.incidentGroup
+    ? await prisma.violation.findMany({ where: { incidentGroup: violation.incidentGroup, id: { not: id } }, include: { student: { select: { fullName: true } } } })
+    : [];
   return (
     <>
       <Link href={`/violations/${id}`} className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 hover:text-ink">
         <ArrowLeft className="size-4" aria-hidden /> Case #{id}
       </Link>
-      <PageHeader title="Edit violation" />
+      <PageHeader
+        title="Edit violation"
+        description={others.length ? `Shared case: changes also apply to ${others.map((o) => o.student.fullName).join(", ")}.` : undefined}
+      />
       <ViolationForm
         mode="edit"
         violationId={id}
