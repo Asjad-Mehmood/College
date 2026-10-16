@@ -11,6 +11,8 @@ import {
   FilePlus2,
   LayoutDashboard,
   MapPinPlus,
+  ShieldHalf,
+  Trophy,
   LogOut,
   Menu,
   Settings,
@@ -52,6 +54,13 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
     items: [
       { href: "/trips/new", label: "Plan a trip", short: "Plan", icon: MapPinPlus, roles: ["ADMIN"] },
       { href: "/trips", label: "All trips", short: "Trips", icon: Bus, roles: ADMIN_VIEW },
+    ],
+  },
+  {
+    title: "Sports",
+    items: [
+      { href: "/sports/trials", label: "Trials", short: "Trials", icon: ShieldHalf, roles: ADMIN_VIEW },
+      { href: "/sports", label: "Teams", short: "Sports", icon: Trophy, roles: ADMIN_VIEW },
     ],
   },
   {

@@ -64,6 +64,8 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
   const student = await prisma.student.findUnique({
     where: { rollNo },
     include: {
+      teams: { include: { team: { include: { sport: true } } } },
+      achievements: { orderBy: { achievedOn: "desc" } },
       trips: {
         orderBy: { trip: { departDate: "desc" } },
         include: { trip: { select: { id: true, title: true, destination: true, departDate: true, status: true, feeAmount: true } } },
@@ -343,6 +345,34 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
       </Card>
 
       <TripsCard trips={student.trips} />
+
+      {(student.teams.length > 0 || student.achievements.length > 0) && (
+        <Card className="overflow-hidden">
+          <CardHeader title="Sports" description="Teams and achievements." />
+          <ul className="divide-y divide-line">
+            {student.teams.map((m) => (
+              <li key={`t${m.id}`}>
+                <Link href={`/sports/teams/${m.team.id}`} className="flex flex-wrap items-center gap-3 px-5 py-3 hover:bg-surface-2/50">
+                  <span className="min-w-0 flex-1 text-sm font-medium">
+                    {m.team.sport.name} · {m.team.category}
+                    <span className="ml-2 text-[12px] font-normal text-muted">{m.team.season}</span>
+                  </span>
+                  {m.role !== "Player" && <Pill tone="accent">{m.role}</Pill>}
+                  <Pill tone={m.status === "SELECTED" ? "good" : "neutral"}>{m.status === "SELECTED" ? "In squad" : m.status === "WAITLIST" ? "Waitlist" : "Dropped"}</Pill>
+                </Link>
+              </li>
+            ))}
+            {student.achievements.map((a) => (
+              <li key={`a${a.id}`} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="font-medium">{a.position}</span> · {a.event}
+                </span>
+                <span className="text-[12px] text-muted">{formatDate(fromDbDate(a.achievedOn))}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

@@ -89,6 +89,19 @@ enum ConsentStatus {
   REFUSED
 }
 
+enum MemberStatus {
+  SELECTED
+  WAITLIST
+  DROPPED
+}
+
+enum TrialResult {
+  PENDING
+  SELECTED
+  WAITLIST
+  REJECTED
+}
+
 enum ParticipantStatus {
   REGISTERED
   WITHDRAWN
@@ -107,9 +120,12 @@ model Student {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
-  lateRecords LateRecord[]
-  violations  Violation[]
-  trips       TripParticipant[]
+  lateRecords  LateRecord[]
+  violations   Violation[]
+  trips        TripParticipant[]
+  teams        TeamMember[]
+  trials       TrialCandidate[]
+  achievements Achievement[]
 
   @@index([program, section])
   @@map("students")
@@ -155,6 +171,7 @@ model User {
   lateRecords LateRecord[]
   violations  Violation[]
   trips       Trip[]
+  teamsAdded  TeamMember[]
 
   @@map("users")
 }
@@ -362,4 +379,107 @@ model TripRoom {
 
   @@index([tripId])
   @@map("trip_rooms")
+}
+
+model Sport {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(60)
+  coach     String?  @db.VarChar(100)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  teams  Team[]
+  trials Trial[]
+
+  @@map("sports")
+}
+
+model Team {
+  id        Int      @id @default(autoincrement())
+  sportId   Int      @map("sport_id")
+  // e.g. "2026-27"
+  season    String   @db.VarChar(20)
+  // e.g. "Senior Boys", "Girls", "Junior"
+  category  String   @db.VarChar(40)
+  coach     String?  @db.VarChar(100)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  sport        Sport         @relation(fields: [sportId], references: [id])
+  members      TeamMember[]
+  achievements Achievement[]
+
+  @@unique([sportId, season, category])
+  @@map("teams")
+}
+
+model TeamMember {
+  id           Int           @id @default(autoincrement())
+  teamId       Int           @map("team_id")
+  rollNo       String        @map("roll_no") @db.VarChar(20)
+  // "Captain", "Vice-captain" or "Player"
+  role         String        @default("Player") @db.VarChar(20)
+  jerseyNo     Int?          @map("jersey_no")
+  position     String?       @db.VarChar(40)
+  status       MemberStatus  @default(SELECTED)
+  medicalNote  String?       @map("medical_note") @db.VarChar(300)
+  consent      ConsentStatus @default(PENDING)
+  overrideNote String?       @map("override_note") @db.VarChar(200)
+  addedById    Int           @map("added_by")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
+  addedBy User    @relation(fields: [addedById], references: [id])
+
+  @@unique([teamId, rollNo])
+  @@index([rollNo])
+  @@map("team_members")
+}
+
+model Trial {
+  id        Int      @id @default(autoincrement())
+  sportId   Int      @map("sport_id")
+  trialDate DateTime @map("trial_date") @db.Date
+  venue     String?  @db.VarChar(100)
+  notes     String?  @db.VarChar(300)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  sport      Sport            @relation(fields: [sportId], references: [id])
+  candidates TrialCandidate[]
+
+  @@index([trialDate])
+  @@map("trials")
+}
+
+model TrialCandidate {
+  id      Int         @id @default(autoincrement())
+  trialId Int         @map("trial_id")
+  rollNo  String      @map("roll_no") @db.VarChar(20)
+  result  TrialResult @default(PENDING)
+  note    String?     @db.VarChar(200)
+
+  trial   Trial   @relation(fields: [trialId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
+
+  @@unique([trialId, rollNo])
+  @@map("trial_candidates")
+}
+
+model Achievement {
+  id         Int      @id @default(autoincrement())
+  // A student, a team, or both (a medal won by a team member).
+  rollNo     String?  @map("roll_no") @db.VarChar(20)
+  teamId     Int?     @map("team_id")
+  event      String   @db.VarChar(120)
+  position   String   @db.VarChar(60)
+  achievedOn DateTime @map("achieved_on") @db.Date
+  notes      String?  @db.VarChar(300)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  student Student? @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
+  team    Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([rollNo])
+  @@map("achievements")
 }
