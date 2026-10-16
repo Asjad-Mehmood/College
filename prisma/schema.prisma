@@ -33,17 +33,10 @@ enum LateReason {
 enum DisciplineAction {
   VERBAL_WARNING
   WRITTEN_WARNING
-  ID_CONFISCATED
   FINE
   PARENT_CALLED
   DETENTION
   PARENT_MEETING
-}
-
-enum CardStatus {
-  NONE
-  HELD
-  RETURNED
 }
 
 enum Schedule {
@@ -80,9 +73,6 @@ model LateRecord {
   minutesLate    Int              @map("minutes_late")
   reason         LateReason
   actionTaken    DisciplineAction @default(VERBAL_WARNING) @map("action_taken")
-  cardStatus     CardStatus       @default(NONE) @map("id_card_status")
-  cardReturnedAt DateTime?        @map("card_returned_at") @db.Timestamptz(3)
-  cardReturnNote String?          @map("card_return_note") @db.VarChar(200)
   fineAmount     Decimal          @default(0) @map("fine_amount") @db.Decimal(8, 2)
   finePaid       Boolean          @default(false) @map("fine_paid")
   finePaidAt     DateTime?        @map("fine_paid_at") @db.Timestamptz(3)
@@ -97,7 +87,6 @@ model LateRecord {
   // A student can only be logged late once per day.
   @@unique([rollNo, lateDate])
   @@index([lateDate])
-  @@index([cardStatus])
   @@map("late_records")
 }
 

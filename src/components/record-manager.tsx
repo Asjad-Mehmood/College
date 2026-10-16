@@ -1,11 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Banknote, IdCard, Pencil, Trash2, X } from "lucide-react";
-import type { CardStatus, DisciplineAction, LateReason } from "@/generated/prisma/enums";
+import { Banknote, Pencil, Trash2, X } from "lucide-react";
+import type { DisciplineAction, LateReason } from "@/generated/prisma/enums";
 import {
   deleteRecord,
-  setCardStatus,
   setFinePaid,
   updateRecord,
   type ActionResult,
@@ -19,25 +18,16 @@ export type ManagedRecord = {
   dateLabel: string;
   reason: LateReason;
   actionTaken: DisciplineAction;
-  cardStatus: CardStatus;
   fineAmount: number;
   finePaid: boolean;
   remarks: string | null;
 };
-
-const RETURN_NOTES = [
-  "Returned after parent call",
-  "Returned after fine payment",
-  "Returned after written warning",
-  "Returned after parent meeting",
-];
 
 /** "Manage" button + dialog for the Discipline In-Charge to update a record. */
 export function RecordManager({ record, compact }: { record: ManagedRecord; compact?: boolean }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
-  const [returnNote, setReturnNote] = useState(RETURN_NOTES[0]);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   function run(fn: () => Promise<ActionResult>, close = false) {
@@ -78,34 +68,6 @@ export function RecordManager({ record, compact }: { record: ManagedRecord; comp
 
         <div className="flex max-h-[70vh] flex-col gap-5 overflow-y-auto px-5 py-4">
           <FormMessage state={result} />
-
-          {/* ID card custody */}
-          <section className="rounded-xl border border-line p-4">
-            <h3 className="flex items-center gap-2 text-sm font-semibold">
-              <IdCard className="size-4 text-muted" aria-hidden /> ID card custody
-            </h3>
-            {record.cardStatus === "HELD" ? (
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <Select value={returnNote} onChange={(e) => setReturnNote(e.target.value)} aria-label="Return note">
-                  {RETURN_NOTES.map((n) => (
-                    <option key={n}>{n}</option>
-                  ))}
-                </Select>
-                <Button variant="primary" disabled={pending} onClick={() => run(() => setCardStatus(record.id, "RETURNED", returnNote))}>
-                  Mark returned
-                </Button>
-              </div>
-            ) : (
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <p className="text-[13px] text-ink-2">
-                  {record.cardStatus === "RETURNED" ? "Card has been returned." : "Card is not held."}
-                </p>
-                <Button disabled={pending} onClick={() => run(() => setCardStatus(record.id, "HELD"))}>
-                  Mark as held
-                </Button>
-              </div>
-            )}
-          </section>
 
           {/* Fine */}
           {record.fineAmount > 0 && (

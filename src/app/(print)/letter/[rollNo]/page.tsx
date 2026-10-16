@@ -161,7 +161,7 @@ async function Letter({
             ) : (
               <>
                 You are requested to ensure that your ward reaches college on time. Further late arrivals will lead to
-                confiscation of the ID card, a fine, or a summons to the Discipline Committee as per college rules.
+                a fine or a summons to the Discipline Committee as per college rules.
               </>
             )}
           </p>

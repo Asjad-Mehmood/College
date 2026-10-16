@@ -79,7 +79,6 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
   });
   const monthCount = perMonth.get(thisMonth) ?? 0;
   const level = strikeLevel(monthCount, settings);
-  const cardsHeld = history.filter((r) => r.cardStatus === "HELD").length;
   const unpaid = history.filter((r) => r.fine > 0 && !r.finePaid).reduce((sum, r) => sum + r.fine, 0);
   const manage = can.manageRecords(user.role);
 
@@ -154,7 +153,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Stat label="Late this month">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-3xl font-semibold">{monthCount}</span>
@@ -164,16 +163,13 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
         <Stat label="Late all time">
           <span className="text-3xl font-semibold">{history.length}</span>
         </Stat>
-        <Stat label="ID card in custody">
-          <span className="text-3xl font-semibold">{cardsHeld > 0 ? "Yes" : "No"}</span>
-        </Stat>
         <Stat label="Unpaid fines">
           <span className="text-3xl font-semibold">Rs. {unpaid.toLocaleString()}</span>
         </Stat>
       </div>
 
       <Card className="overflow-hidden">
-        <CardHeader title="Late-arrival history" description="Every late arrival, excuse, card confiscation and fine." />
+        <CardHeader title="Late-arrival history" description="Every late arrival, excuse, action taken and fine." />
         {history.length === 0 ? (
           <EmptyState icon={<History className="size-5" />} title="No late arrivals on record">
             This student has never been logged late.
@@ -185,7 +181,6 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
                 <Th>Date &amp; arrival</Th>
                 <Th>Strike</Th>
                 <Th>Reason / action</Th>
-                <Th>ID card</Th>
                 <Th>Fine</Th>
                 <Th>Remarks</Th>
                 <Th className="no-print">
@@ -198,7 +193,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
               return (
                 <tbody key={month}>
                   <tr>
-                    <td colSpan={8} className="border-b border-line bg-surface-2/40 px-4 py-2 text-[12px] font-semibold text-ink-2">
+                    <td colSpan={7} className="border-b border-line bg-surface-2/40 px-4 py-2 text-[12px] font-semibold text-ink-2">
                       {formatMonth(`${month}-01`)} · {rows.length} late
                     </td>
                   </tr>
@@ -216,21 +211,6 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
                       <Td>
                         <span className="block">{REASON_LABELS[r.reason]}</span>
                         <span className="block text-[12px] text-muted">{ACTION_LABELS[r.actionTaken]}</span>
-                      </Td>
-                      <Td>
-                        {r.cardStatus === "HELD" && <Pill tone="warning">Held</Pill>}
-                        {r.cardStatus === "RETURNED" && (
-                          <div>
-                            <Pill tone="good">Returned</Pill>
-                            {r.cardReturnedAt && (
-                              <p className="mt-1 text-[12px] text-muted">
-                                {formatDate(localParts(r.cardReturnedAt, settings.timezone).date)}
-                                {r.cardReturnNote && ` · ${r.cardReturnNote}`}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        {r.cardStatus === "NONE" && <span className="text-muted">—</span>}
                       </Td>
                       <Td>
                         {r.fine > 0 ? (
@@ -260,7 +240,6 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
                                 dateLabel: formatDate(r.date),
                                 reason: r.reason,
                                 actionTaken: r.actionTaken,
-                                cardStatus: r.cardStatus,
                                 fineAmount: r.fine,
                                 finePaid: r.finePaid,
                                 remarks: r.remarks,

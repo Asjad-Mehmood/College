@@ -1,5 +1,4 @@
 import type {
-  CardStatus,
   DisciplineAction,
   LateReason,
   Role,
@@ -21,17 +20,10 @@ export const REASON_LABELS: Record<LateReason, string> = Object.fromEntries(
 export const ACTION_LABELS: Record<DisciplineAction, string> = {
   VERBAL_WARNING: "Verbal warning",
   WRITTEN_WARNING: "Written warning",
-  ID_CONFISCATED: "ID card confiscated",
   FINE: "Fine imposed",
   PARENT_CALLED: "Parent called",
   DETENTION: "Detention",
   PARENT_MEETING: "Parent meeting",
-};
-
-export const CARD_LABELS: Record<CardStatus, string> = {
-  NONE: "Not held",
-  HELD: "Held",
-  RETURNED: "Returned",
 };
 
 export const ROLE_LABELS: Record<Role, string> = {

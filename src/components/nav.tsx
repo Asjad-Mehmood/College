@@ -13,16 +13,36 @@ import {
 import type { Role } from "@/generated/prisma/enums";
 import { cx } from "@/components/ui";
 
-const ITEMS = [
-  { href: "/gate", label: "Gate check-in", short: "Gate", icon: ScanLine, roles: ["ADMIN", "GATE"] },
-  { href: "/dashboard", label: "Dashboard", short: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "PRINCIPAL"] },
-  { href: "/records", label: "Late records", short: "Records", icon: ClipboardList, roles: ["ADMIN", "PRINCIPAL"] },
-  { href: "/students", label: "Students", short: "Students", icon: Users, roles: ["ADMIN", "PRINCIPAL"] },
-  { href: "/settings", label: "Settings", short: "Settings", icon: Settings, roles: ["ADMIN"] },
+// Sidebar sections. New modules (trips, violations, …) get their own group.
+const GROUPS = [
+  {
+    title: null,
+    items: [
+      { href: "/dashboard", label: "Dashboard", short: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "PRINCIPAL"] },
+      { href: "/students", label: "Students", short: "Students", icon: Users, roles: ["ADMIN", "PRINCIPAL"] },
+    ],
+  },
+  {
+    title: "Late arrivals",
+    items: [
+      { href: "/gate", label: "Gate check-in", short: "Gate", icon: ScanLine, roles: ["ADMIN", "GATE"] },
+      { href: "/records", label: "Late records", short: "Records", icon: ClipboardList, roles: ["ADMIN", "PRINCIPAL"] },
+    ],
+  },
+  {
+    title: "Administration",
+    items: [{ href: "/settings", label: "Settings", short: "Settings", icon: Settings, roles: ["ADMIN"] }],
+  },
 ] as const;
 
-function itemsFor(role: Role) {
-  return ITEMS.filter((i) => (i.roles as readonly Role[]).includes(role));
+type Item = (typeof GROUPS)[number]["items"][number];
+
+function allowed(item: Item, role: Role) {
+  return (item.roles as readonly Role[]).includes(role);
+}
+
+function itemsFor(role: Role): Item[] {
+  return GROUPS.flatMap((g) => g.items as readonly Item[]).filter((i) => allowed(i, role));
 }
 
 function useIsActive() {
@@ -33,24 +53,33 @@ function useIsActive() {
 export function SideNav({ role }: { role: Role }) {
   const isActive = useIsActive();
   return (
-    <nav className="flex flex-col gap-0.5">
-      {itemsFor(role).map(({ href, label, icon: Icon }) => {
-        const active = isActive(href);
+    <nav className="flex flex-col gap-5">
+      {GROUPS.map((group) => {
+        const items = (group.items as readonly Item[]).filter((i) => allowed(i, role));
+        if (items.length === 0) return null;
         return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={active ? "page" : undefined}
-            className={cx(
-              "flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
-              active
-                ? "bg-accent-soft text-accent-ink"
-                : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+          <div key={group.title ?? "main"} className="flex flex-col gap-0.5">
+            {group.title && (
+              <p className="px-3 pb-1.5 text-[11px] font-semibold tracking-wider text-muted uppercase">{group.title}</p>
             )}
-          >
-            <Icon className="size-[18px]" aria-hidden />
-            {label}
-          </Link>
+            {items.map(({ href, label, icon: Icon }) => {
+              const active = isActive(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className={cx(
+                    "flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
+                    active ? "bg-accent-soft text-accent-ink" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+                  )}
+                >
+                  <Icon className="size-[18px]" aria-hidden />
+                  {label}
+                </Link>
+              );
+            })}
+          </div>
         );
       })}
     </nav>

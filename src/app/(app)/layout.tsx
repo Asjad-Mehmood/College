@@ -3,6 +3,7 @@ import { logout } from "@/app/(auth)/actions";
 import { BrandMark } from "@/components/brand";
 import { BottomNav, LogoutButton, SideNav } from "@/components/nav";
 import { Avatar, Skeleton } from "@/components/ui";
+import { APP_NAME, APP_TAGLINE } from "@/lib/app";
 import { requireUser } from "@/lib/auth";
 import { ROLE_LABELS } from "@/lib/labels";
 
@@ -14,8 +15,8 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         <div className="flex h-16 items-center gap-3 px-5">
           <BrandMark />
           <div className="leading-tight">
-            <p className="text-sm font-semibold">Late-Coming Portal</p>
-            <p className="text-[12px] text-muted">Discipline Office</p>
+            <p className="text-sm font-semibold">{APP_NAME}</p>
+            <p className="text-[12px] text-muted">{APP_TAGLINE}</p>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-3">
@@ -34,7 +35,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       <header className="no-print sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line bg-surface/95 px-4 backdrop-blur lg:hidden">
         <div className="flex items-center gap-2.5">
           <BrandMark className="size-8" />
-          <p className="text-sm font-semibold">Late-Coming Portal</p>
+          <p className="text-sm font-semibold">{APP_NAME}</p>
         </div>
         <LogoutButton action={logout} compact />
       </header>

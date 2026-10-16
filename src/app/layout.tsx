@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { APP_NAME, APP_TAGLINE } from "@/lib/app";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,10 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    template: "%s · Late-Coming Portal",
-    default: "Late-Coming Portal",
+    template: `%s · ${APP_NAME}`,
+    default: APP_NAME,
   },
-  description: "College late-coming and discipline management portal",
+  description: `${APP_NAME}: ${APP_TAGLINE.toLowerCase()} for the college`,
 };
 
 export const viewport: Viewport = {

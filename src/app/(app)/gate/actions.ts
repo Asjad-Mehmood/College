@@ -42,7 +42,6 @@ export type LookupResult =
       withinGrace: boolean;
       startTime: string;
       defaultFine: number;
-      cardHeld: boolean;
     }
   | { ok: false; error: string; suggestions: GateStudent[] };
 
@@ -93,7 +92,7 @@ export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
   }
 
   const { today, arrivalTime, minutesLate } = arrival(settings);
-  const [monthCount, todayRecord, heldCard] = await Promise.all([
+  const [monthCount, todayRecord] = await Promise.all([
     prisma.lateRecord.count({
       where: {
         rollNo: student.rollNo,
@@ -103,10 +102,6 @@ export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
     prisma.lateRecord.findUnique({
       where: { rollNo_lateDate: { rollNo: student.rollNo, lateDate: toDbDate(today) } },
       select: { id: true, arrivedAt: true },
-    }),
-    prisma.lateRecord.findFirst({
-      where: { rollNo: student.rollNo, cardStatus: "HELD" },
-      select: { id: true },
     }),
   ]);
 
@@ -128,7 +123,6 @@ export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
     withinGrace: minutesLate <= settings.gracePeriodMins,
     startTime: formatMinutes(settings.startMinutes),
     defaultFine: settings.defaultFineAmount,
-    cardHeld: !!heldCard,
   };
 }
 
@@ -147,7 +141,6 @@ export type LogResult =
 export async function logLateArrival(input: {
   rollNo: string;
   reason: LateReason;
-  holdCard: boolean;
   fine: boolean;
   fineAmount?: number;
   notifyParent: boolean;
@@ -177,8 +170,11 @@ export async function logLateArrival(input: {
   const fineAmount = input.fine
     ? Math.max(0, Math.round(Number(input.fineAmount ?? settings.defaultFineAmount) || 0))
     : 0;
+  // Escalation: habitual offenders get a written warning instead of a verbal one.
+  const monthRange = { gte: toDbDate(monthStart(today)), lt: toDbDate(nextMonthStart(today)) };
+  const strikeNow = (await prisma.lateRecord.count({ where: { rollNo: student.rollNo, lateDate: monthRange } })) + 1;
   const actionTaken: DisciplineAction =
-    fineAmount > 0 ? "FINE" : input.holdCard ? "ID_CONFISCATED" : "VERBAL_WARNING";
+    fineAmount > 0 ? "FINE" : strikeNow >= settings.habitualThreshold ? "WRITTEN_WARNING" : "VERBAL_WARNING";
 
   let recordId: number;
   try {
@@ -190,7 +186,6 @@ export async function logLateArrival(input: {
         minutesLate,
         reason: input.reason,
         actionTaken,
-        cardStatus: input.holdCard ? "HELD" : "NONE",
         fineAmount,
         parentNotified: input.notifyParent,
         remarks: input.remarks?.trim() || null,
@@ -205,12 +200,7 @@ export async function logLateArrival(input: {
     throw e;
   }
 
-  const strike = await prisma.lateRecord.count({
-    where: {
-      rollNo: student.rollNo,
-      lateDate: { gte: toDbDate(monthStart(today)), lt: toDbDate(nextMonthStart(today)) },
-    },
-  });
+  const strike = await prisma.lateRecord.count({ where: { rollNo: student.rollNo, lateDate: monthRange } });
 
   let notify = null;
   if (input.notifyParent) {

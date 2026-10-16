@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
-import type { CardStatus, DisciplineAction, LateReason } from "@/generated/prisma/enums";
+import type { DisciplineAction, LateReason } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import type { Settings } from "@/lib/settings";
 import { addDays, fromDbDate, isValidYmd, localParts, monthStart } from "@/lib/time";
@@ -25,7 +25,6 @@ export type RecordFilters = {
   program: string;
   section: string;
   strike: StrikeFilter | "";
-  card: "held" | "";
   fines: "unpaid" | "";
   habitual: boolean;
   page: number;
@@ -51,7 +50,6 @@ export function parseRecordFilters(params: Params): RecordFilters {
     program: one(params, "program"),
     section: one(params, "section"),
     strike: strike === "low" || strike === "habitual" || strike === "critical" ? strike : "",
-    card: one(params, "card") === "held" ? "held" : "",
     fines: one(params, "fines") === "unpaid" ? "unpaid" : "",
     habitual: one(params, "habitual") === "1",
     page: Math.max(1, Number.parseInt(one(params, "page"), 10) || 1),
@@ -71,7 +69,6 @@ export function filtersToQuery(f: RecordFilters, overrides: Partial<RecordFilter
   if (merged.program) qs.set("program", merged.program);
   if (merged.section) qs.set("section", merged.section);
   if (merged.strike) qs.set("strike", merged.strike);
-  if (merged.card) qs.set("card", merged.card);
   if (merged.fines) qs.set("fines", merged.fines);
   if (merged.habitual) qs.set("habitual", "1");
   if (merged.page > 1) qs.set("page", String(merged.page));
@@ -116,7 +113,6 @@ export type LedgerRow = {
   minutesLate: number;
   reason: LateReason;
   actionTaken: DisciplineAction;
-  cardStatus: CardStatus;
   fineAmount: number;
   finePaid: boolean;
   remarks: string | null;
@@ -166,7 +162,6 @@ export async function queryLedger(
     where.push(Prisma.sql`c.strike_no >= ${settings.habitualThreshold} AND c.strike_no < ${settings.criticalThreshold}`);
   if (f.strike === "critical") where.push(Prisma.sql`c.strike_no >= ${settings.criticalThreshold}`);
   if (f.habitual) where.push(Prisma.sql`c.month_count >= ${settings.habitualThreshold}`);
-  if (f.card === "held") where.push(Prisma.sql`c.id_card_status = 'HELD'`);
   if (f.fines === "unpaid") where.push(Prisma.sql`c.fine_amount > 0 AND NOT c.fine_paid`);
 
   const limit = opts.limit ?? PAGE_SIZE;
@@ -184,7 +179,7 @@ export async function queryLedger(
       c.id, c.roll_no AS "rollNo", s.full_name AS "fullName", s.father_name AS "fatherName",
       s.program, s.section, s.photo_url AS "photoUrl", s.parent_phone AS "parentPhone",
       c.late_date AS "lateDate", c.arrived_at AS "arrivedAt", c.minutes_late AS "minutesLate",
-      c.reason::text AS reason, c.action_taken::text AS "actionTaken", c.id_card_status::text AS "cardStatus",
+      c.reason::text AS reason, c.action_taken::text AS "actionTaken",
       c.fine_amount AS "fineAmount", c.fine_paid AS "finePaid", c.remarks,
       c.strike_no AS "strikeNo", c.month_count AS "monthCount",
       u.full_name AS "recordedBy",

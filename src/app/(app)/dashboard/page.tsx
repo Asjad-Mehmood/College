@@ -6,8 +6,8 @@ import {
   ArrowRight,
   ArrowUpRight,
   Banknote,
+  CalendarDays,
   Clock,
-  IdCard,
   Inbox,
   Minus,
   ScanLine,
@@ -103,7 +103,6 @@ async function Dashboard() {
     yesterdayCount,
     todayRecords,
     monthCounts,
-    cardsHeld,
     unpaidFines,
     meetings,
     trendRows,
@@ -122,7 +121,6 @@ async function Dashboard() {
       _count: { _all: true },
       orderBy: { _count: { rollNo: "desc" } },
     }),
-    prisma.lateRecord.count({ where: { cardStatus: "HELD" } }),
     prisma.lateRecord.aggregate({
       where: { fineAmount: { gt: 0 }, finePaid: false },
       _count: { _all: true },
@@ -148,6 +146,7 @@ async function Dashboard() {
     (r) => (countByRoll.get(r.rollNo) ?? 0) >= settings.habitualThreshold,
   ).length;
   const habitualMonth = monthCounts.filter((c) => c._count._all >= settings.habitualThreshold).length;
+  const monthTotal = monthCounts.reduce((sum, c) => sum + c._count._all, 0);
 
   const trendMap = new Map(trendRows.map((r) => [fromDbDate(r.lateDate), r._count._all]));
   const trend = Array.from({ length: 30 }, (_, i) => {
@@ -201,11 +200,15 @@ async function Dashboard() {
           footer={<span>{habitualMonth} this month ({settings.habitualThreshold}+ lates)</span>}
         />
         <Kpi
-          icon={<IdCard className="size-4" aria-hidden />}
-          label="ID cards in custody"
-          value={cardsHeld}
-          href="/records?range=all&card=held"
-          footer={<span>Held in the Discipline Office</span>}
+          icon={<CalendarDays className="size-4" aria-hidden />}
+          label="Late this month"
+          value={monthTotal}
+          href="/records?range=month"
+          footer={
+            <span>
+              {monthCounts.length} {monthCounts.length === 1 ? "student" : "students"} · {formatMonth(today)}
+            </span>
+          }
         />
         <Kpi
           icon={<Banknote className="size-4" aria-hidden />}

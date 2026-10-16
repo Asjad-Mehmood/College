@@ -25,7 +25,7 @@ export const STRIKE_LABELS: Record<StrikeLevel, string> = {
 export const STRIKE_GUIDANCE: Record<StrikeLevel, string> = {
   good: "Record with a verbal warning.",
   warning: "Verbal warning — next late makes the student a habitual offender.",
-  serious: "Habitual offender: confiscate the ID card or issue a written warning.",
+  serious: "Habitual offender: issue a written warning and inform the parent.",
   critical: "Critical: impose a fine, detention, or call parents to the Discipline Committee.",
 };
 

@@ -149,7 +149,6 @@ async function Ledger({ searchParams }: { searchParams: SP }) {
                 <Th>Date &amp; arrival</Th>
                 <Th>Strike</Th>
                 <Th>Reason / action</Th>
-                <Th>ID card</Th>
                 <Th>Fine</Th>
                 <Th className="no-print text-right">
                   <span className="sr-only">Actions</span>
@@ -188,15 +187,6 @@ async function Ledger({ searchParams }: { searchParams: SP }) {
                     <span className="block text-[12px] text-muted">{ACTION_LABELS[r.actionTaken]}</span>
                   </Td>
                   <Td>
-                    {r.cardStatus === "HELD" ? (
-                      <Pill tone="warning">Held</Pill>
-                    ) : r.cardStatus === "RETURNED" ? (
-                      <Pill tone="good">Returned</Pill>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </Td>
-                  <Td>
                     {r.fineAmount > 0 ? (
                       <Pill tone={r.finePaid ? "good" : "critical"}>
                         Rs. {r.fineAmount} · {r.finePaid ? "Paid" : "Unpaid"}
@@ -220,7 +210,6 @@ async function Ledger({ searchParams }: { searchParams: SP }) {
                             dateLabel: formatDate(r.lateDate),
                             reason: r.reason,
                             actionTaken: r.actionTaken,
-                            cardStatus: r.cardStatus,
                             fineAmount: r.fineAmount,
                             finePaid: r.finePaid,
                             remarks: r.remarks,
@@ -286,7 +275,6 @@ function Filters({
 }) {
   const quick = [
     { name: "habitual", value: "1", active: filters.habitual, label: `Habitual (${settings.habitualThreshold}+ this month)` },
-    { name: "card", value: "held", active: filters.card === "held", label: "ID card held" },
     { name: "fines", value: "unpaid", active: filters.fines === "unpaid", label: "Unpaid fines" },
   ];
   return (

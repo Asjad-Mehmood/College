@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Clock,
   CornerDownLeft,
-  IdCard,
   Loader2,
   MessageCircle,
   MessageSquareText,
@@ -50,7 +49,6 @@ export function GateConsole() {
   const [roll, setRoll] = useState("");
   const [stage, setStage] = useState<Stage>({ kind: "idle" });
   const [reason, setReason] = useState<LateReason | null>(null);
-  const [holdCard, setHoldCard] = useState(false);
   const [fine, setFine] = useState(false);
   const [fineAmount, setFineAmount] = useState("");
   const [notifyParent, setNotifyParent] = useState(true);
@@ -65,7 +63,6 @@ export function GateConsole() {
     setRoll("");
     setStage({ kind: "idle" });
     setReason(null);
-    setHoldCard(false);
     setFine(false);
     setFineAmount("");
     setNotifyParent(true);
@@ -87,8 +84,7 @@ export function GateConsole() {
       setRoll(res.student.rollNo);
       setReason(null);
       setRemarks("");
-      // Escalation engine: pre-select the recommended actions.
-      setHoldCard(!res.cardHeld && (res.level === "serious" || res.level === "critical"));
+      // Escalation engine: suggest a fine at the critical level.
       setFine(res.level === "critical");
       setFineAmount(String(res.defaultFine));
       setNotifyParent(true);
@@ -112,7 +108,6 @@ export function GateConsole() {
       const result = await logLateArrival({
         rollNo: data.student.rollNo,
         reason,
-        holdCard,
         fine,
         fineAmount: Number(fineAmount),
         notifyParent,
@@ -125,7 +120,7 @@ export function GateConsole() {
       setStage({ kind: "saved", data, result });
       requestAnimationFrame(() => nextRef.current?.focus());
     });
-  }, [stage, reason, canSave, holdCard, fine, fineAmount, notifyParent, remarks]);
+  }, [stage, reason, canSave, fine, fineAmount, notifyParent, remarks]);
 
   // Keyboard flow: 1–5 pick a reason, Enter saves, Esc starts over.
   useEffect(() => {
@@ -268,14 +263,7 @@ export function GateConsole() {
               })}
             </div>
 
-            <div className="mt-5 grid gap-2 sm:grid-cols-3">
-              <Toggle
-                checked={holdCard}
-                onChange={setHoldCard}
-                icon={<IdCard className="size-4.5" aria-hidden />}
-                label="Hold ID card"
-                hint={stage.data.cardHeld ? "A card is already held" : undefined}
-              />
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
               <Toggle
                 checked={fine}
                 onChange={setFine}

@@ -12,23 +12,6 @@ async function adminOnly() {
   return requireUser(["ADMIN"]);
 }
 
-export async function setCardStatus(
-  id: number,
-  status: "HELD" | "RETURNED",
-  note?: string,
-): Promise<ActionResult> {
-  await adminOnly();
-  await prisma.lateRecord.update({
-    where: { id },
-    data:
-      status === "RETURNED"
-        ? { cardStatus: "RETURNED", cardReturnedAt: new Date(), cardReturnNote: note?.trim().slice(0, 200) || null }
-        : { cardStatus: "HELD", cardReturnedAt: null, cardReturnNote: null },
-  });
-  refresh();
-  return { ok: true, message: status === "RETURNED" ? "ID card marked as returned." : "ID card marked as held." };
-}
-
 export async function setFinePaid(id: number, paid: boolean): Promise<ActionResult> {
   await adminOnly();
   await prisma.lateRecord.update({

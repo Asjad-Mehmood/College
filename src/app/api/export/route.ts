@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import * as XLSX from "xlsx";
 import { getCurrentUser, can } from "@/lib/auth";
-import { ACTION_LABELS, CARD_LABELS, REASON_LABELS } from "@/lib/labels";
+import { ACTION_LABELS, REASON_LABELS } from "@/lib/labels";
 import { parseRecordFilters, queryLedger } from "@/lib/records";
 import { getSettings } from "@/lib/settings";
 import { formatTime, localParts } from "@/lib/time";
@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
       "Lates This Month": r.monthCount,
       Reason: REASON_LABELS[r.reason],
       "Action Taken": ACTION_LABELS[r.actionTaken],
-      "ID Card": CARD_LABELS[r.cardStatus],
       "Fine (Rs)": r.fineAmount,
       "Fine Paid": r.fineAmount > 0 ? (r.finePaid ? "Yes" : "No") : "",
       "Parent Phone": r.parentPhone,
@@ -41,7 +40,7 @@ export async function GET(request: NextRequest) {
       "Recorded By": r.recordedBy,
     })),
   );
-  sheet["!cols"] = [10, 22, 22, 20, 14, 11, 11, 8, 8, 8, 16, 18, 10, 9, 9, 14, 30, 18].map((wch) => ({ wch }));
+  sheet["!cols"] = [10, 22, 22, 20, 14, 11, 11, 8, 8, 8, 16, 18, 9, 9, 14, 30, 18].map((wch) => ({ wch }));
 
   const stamp = localParts(new Date(), settings.timezone).date;
   const filename = `late-records-${stamp}.${format}`;

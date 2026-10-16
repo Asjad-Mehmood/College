@@ -121,15 +121,14 @@ async function main() {
       const arrivedAt = new Date(`${ymd}T03:00:00Z`);
       arrivedAt.setUTCMinutes(minutesLate, Math.floor(rand() * 60));
       const fine = habitual.has(s.rollNo) && rand() < 0.25;
-      const held = !fine && habitual.has(s.rollNo) && rand() < 0.35;
+      const written = !fine && habitual.has(s.rollNo) && rand() < 0.35;
       records.push({
         rollNo: s.rollNo,
         lateDate: new Date(`${ymd}T00:00:00Z`),
         arrivedAt,
         minutesLate,
         reason: pick(REASONS),
-        actionTaken: fine ? ("FINE" as const) : held ? ("ID_CONFISCATED" as const) : ("VERBAL_WARNING" as const),
-        cardStatus: held ? (day > 10 && rand() < 0.7 ? ("RETURNED" as const) : ("HELD" as const)) : ("NONE" as const),
+        actionTaken: fine ? ("FINE" as const) : written ? ("WRITTEN_WARNING" as const) : ("VERBAL_WARNING" as const),
         fineAmount: fine ? 100 : 0,
         finePaid: fine && day > 7 && rand() < 0.6,
         parentNotified: rand() < 0.7,

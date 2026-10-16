@@ -102,7 +102,7 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
           Monthly late counts that trigger each level. Below the habitual threshold the student gets a verbal warning.
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Field label="Habitual offender at" hint="Prompts ID card confiscation">
+          <Field label="Habitual offender at" hint="Prompts a written warning">
             <Input name="habitualThreshold" type="number" min={2} max={31} required defaultValue={values.habitualThreshold} />
           </Field>
           <Field label="Critical at" hint="Prompts a fine or parent meeting">
