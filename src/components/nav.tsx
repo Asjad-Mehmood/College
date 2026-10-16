@@ -15,6 +15,7 @@ import {
   Trophy,
   LogOut,
   Menu,
+  ScanSearch,
   Settings,
   ShieldAlert,
   Users,
@@ -33,6 +34,7 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", short: "Home", icon: LayoutDashboard, roles: ADMIN_VIEW, mobile: true },
       { href: "/students", label: "Students", short: "Students", icon: Users, roles: ADMIN_VIEW, mobile: true },
+      { href: "/audit", label: "General audit", short: "Audit", icon: ScanSearch, roles: ADMIN_VIEW },
     ],
   },
   {
