@@ -25,7 +25,8 @@ export async function saveStudent(_: StudentFormState, formData: FormData): Prom
     program: get("program"),
     section: get("section"),
     parentPhone: get("parentPhone"),
-    studentPhone: get("studentPhone") || null,
+    // The form no longer asks for the student's phone; keep any number already saved.
+    ...(formData.has("studentPhone") && { studentPhone: get("studentPhone") || null }),
     photoUrl: get("photoUrl") || null,
     status: (STATUSES.includes(get("status") as StudentStatus) ? get("status") : "ACTIVE") as StudentStatus,
     batchId: Number(get("batchId")) || null,

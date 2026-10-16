@@ -188,11 +188,8 @@ export function StudentDialog({
                 {student && !sections.some((x) => x.name === student.section) && <option value={student.section}>{student.section}</option>}
               </Select>
             </Field>
-            <Field label="Parent phone *" hint="Used for WhatsApp / SMS alerts">
+            <Field label="Parent phone *" hint="Used for WhatsApp / SMS alerts" className="sm:col-span-2">
               <Input name="parentPhone" type="tel" required maxLength={20} defaultValue={student?.parentPhone} placeholder="03XX XXXXXXX" />
-            </Field>
-            <Field label="Student phone">
-              <Input name="studentPhone" type="tel" maxLength={20} defaultValue={student?.studentPhone ?? ""} />
             </Field>
             <input type="hidden" name="photoUrl" value={student?.photoUrl ?? ""} />
             <div className="sm:col-span-2">
