@@ -106,7 +106,6 @@ export type StudentAudit = {
     position: string | null;
     jerseyNo: number | null;
     status: string;
-    consent: string;
   }[];
   achievements: { id: number; date: string; event: string; position: string; notes: string | null }[];
   fines: { key: string; date: string; source: "Late arrival" | "Violation"; detail: string; amount: number; paid: boolean; href?: string }[];
@@ -193,7 +192,6 @@ export async function getStudentAudit(rollNo: string): Promise<StudentAudit | nu
       position: m.position,
       jerseyNo: m.jerseyNo,
       status: cap(m.status),
-      consent: CONSENT_LABELS[m.consent],
     }))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
   const achievements = s.achievements.map((a) => ({

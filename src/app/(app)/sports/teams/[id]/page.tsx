@@ -81,7 +81,6 @@ async function Team({ params }: { params: PageProps<"/sports/teams/[id]">["param
           jerseyNo: m.jerseyNo,
           position: m.position,
           status: m.status,
-          consent: m.consent,
           medicalNote: m.medicalNote,
           overrideNote: m.overrideNote,
           message: whatsAppLink(

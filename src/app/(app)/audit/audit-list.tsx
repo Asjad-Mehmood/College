@@ -489,7 +489,7 @@ function Sports({ a }: { a: StudentAudit }) {
                 <p className="mt-2 text-[13px] text-ink-2">
                   {t.role}
                   {t.position && ` · ${t.position}`}
-                  {t.jerseyNo != null && ` · Jersey #${t.jerseyNo}`} · Consent {t.consent.toLowerCase()}
+                  {t.jerseyNo != null && ` · Jersey #${t.jerseyNo}`}
                 </p>
               </Link>
             ))}

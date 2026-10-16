@@ -67,7 +67,7 @@ async function Sheet({ params }: { params: PageProps<"/team-sheet/[id]">["params
         <table className="mt-3 w-full border-collapse text-[12px]">
           <thead>
             <tr>
-              {["#", "Jersey", "Roll no.", "Name", "Father", "Section", "Role", "Position", "Contact", "Consent"].map((h) => (
+              {["#", "Jersey", "Roll no.", "Name", "Father", "Section", "Role", "Position", "Contact"].map((h) => (
                 <th key={h} className="border border-black bg-neutral-100 px-1.5 py-1 text-left font-semibold">
                   {h}
                 </th>
@@ -86,7 +86,6 @@ async function Sheet({ params }: { params: PageProps<"/team-sheet/[id]">["params
                 <td className="border border-black px-1.5 py-1">{m.role === "Player" ? "" : m.role}</td>
                 <td className="border border-black px-1.5 py-1">{m.position ?? ""}</td>
                 <td className="border border-black px-1.5 py-1">{m.student.parentPhone}</td>
-                <td className="border border-black px-1.5 py-1">{m.consent === "RECEIVED" ? "Yes" : m.consent === "REFUSED" ? "Refused" : "Pending"}</td>
               </tr>
             ))}
           </tbody>

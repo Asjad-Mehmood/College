@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
-import type { ConsentStatus, MemberStatus, TrialResult } from "@/generated/prisma/enums";
+import type { MemberStatus, TrialResult } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveRoll } from "@/lib/student-lookup";
@@ -144,7 +144,7 @@ export async function addMember(teamId: number, rollNo: string, overrideNote?: s
 
 export async function updateMember(
   id: number,
-  input: { role?: string; jerseyNo?: string; position?: string; status?: MemberStatus; consent?: ConsentStatus; medicalNote?: string },
+  input: { role?: string; jerseyNo?: string; position?: string; status?: MemberStatus; medicalNote?: string },
 ): Promise<FormState> {
   await admin();
   const m = await prisma.teamMember.findUnique({ where: { id } });
@@ -164,7 +164,6 @@ export async function updateMember(
   }
   if (input.position !== undefined) data.position = clean(input.position, 40) || null;
   if (input.status) data.status = input.status;
-  if (input.consent) data.consent = input.consent;
   if (input.medicalNote !== undefined) data.medicalNote = clean(input.medicalNote, 300) || null;
   await prisma.teamMember.update({ where: { id }, data });
   refresh();

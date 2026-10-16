@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { MessageCircle, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react";
-import type { ConsentStatus, MemberStatus } from "@/generated/prisma/enums";
+import type { MemberStatus } from "@/generated/prisma/enums";
 import { Avatar, Button, Card, CardHeader, Field, FormMessage, Input, Pill, cx, fieldClass } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
-import { CONSENT_LABELS } from "@/lib/labels";
 import {
   addAchievement,
   addMember,
@@ -32,7 +31,6 @@ export type MemberView = {
   jerseyNo: number | null;
   position: string | null;
   status: MemberStatus;
-  consent: ConsentStatus;
   medicalNote: string | null;
   overrideNote: string | null;
   message: string;
@@ -227,21 +225,6 @@ function MemberRow({ m, editable }: { m: MemberView; editable: boolean }) {
               {(Object.keys(STATUS_LABEL) as MemberStatus[]).map((s) => (
                 <option key={s} value={s}>
                   {STATUS_LABEL[s]}
-                </option>
-              ))}
-            </select>
-            <select
-              value={m.consent}
-              onChange={(e) => run(() => updateMember(m.id, { consent: e.target.value as ConsentStatus }))}
-              aria-label={`Consent for ${m.fullName}`}
-              className={cx(
-                "h-8 rounded-lg border px-2 text-[13px] font-medium",
-                m.consent === "RECEIVED" ? "border-good/40 bg-good/10 text-success-ink" : m.consent === "REFUSED" ? "border-critical/40 bg-critical/10 text-danger-ink" : "border-warning/50 bg-warning/15",
-              )}
-            >
-              {(Object.keys(CONSENT_LABELS) as ConsentStatus[]).map((c) => (
-                <option key={c} value={c}>
-                  Consent: {CONSENT_LABELS[c]}
                 </option>
               ))}
             </select>
