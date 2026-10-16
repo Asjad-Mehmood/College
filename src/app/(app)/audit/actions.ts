@@ -1,21 +1,20 @@
 "use server";
 
 import { requireUser } from "@/lib/auth";
-import { ACTION_LABELS, CASE_STATUS_LABELS, CONSENT_LABELS, REASON_LABELS, SEVERITY_LABELS, STUDENT_STATUS_LABELS, VIOLATION_ACTION_LABELS } from "@/lib/labels";
+import {
+  ACTION_LABELS,
+  CASE_STATUS_LABELS,
+  CONSENT_LABELS,
+  REASON_LABELS,
+  SEVERITY_LABELS,
+  STUDENT_STATUS_LABELS,
+  TRIP_STATUS_LABELS,
+  VIOLATION_ACTION_LABELS,
+} from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
-import { formatTime, fromDbDate } from "@/lib/time";
-
-export type AuditEvent = {
-  /** YYYY-MM-DD, used for ordering */
-  date: string;
-  kind: "late" | "violation" | "trip" | "sport" | "achievement";
-  title: string;
-  detail: string;
-  /** Short status label such as "Open" or "Fine unpaid" */
-  badge?: string;
-  href?: string;
-};
+import { strikeLevel, type StrikeLevel } from "@/lib/strikes";
+import { formatTime, fromDbDate, localParts } from "@/lib/time";
 
 export type StudentAudit = {
   student: {
@@ -24,26 +23,95 @@ export type StudentAudit = {
     fatherName: string;
     program: string;
     section: string;
+    sectionYear: string | null;
     parentPhone: string;
     studentPhone: string | null;
     photoUrl: string | null;
     status: string;
+    active: boolean;
     addedOn: string;
+    updatedOn: string;
   };
   totals: {
     lates: number;
-    latesThisYear: number;
+    latesThisMonth: number;
+    monthLevel: StrikeLevel;
+    avgMinutesLate: number;
     violations: number;
     openCases: number;
-    unpaidFines: number;
+    severeCases: number;
+    finesTotal: number;
+    finesUnpaid: number;
     trips: number;
     teams: number;
     achievements: number;
   };
-  events: AuditEvent[];
+  /** Late arrivals per month for the last 12 months, oldest first. */
+  lateTrend: { month: string; count: number }[];
+  lates: {
+    id: number;
+    date: string;
+    time: string;
+    minutesLate: number;
+    reason: string;
+    action: string;
+    fine: number;
+    finePaid: boolean;
+    parentNotified: boolean;
+    remarks: string | null;
+    recordedBy: string;
+  }[];
+  violations: {
+    id: number;
+    date: string;
+    time: string | null;
+    type: string;
+    severity: string;
+    severityKey: string;
+    location: string | null;
+    description: string;
+    reportedBy: string | null;
+    action: string;
+    suspensionDays: number | null;
+    fine: number;
+    finePaid: boolean;
+    status: string;
+    open: boolean;
+    closingNote: string | null;
+    recordedBy: string;
+  }[];
+  trips: {
+    id: number;
+    title: string;
+    destination: string;
+    departDate: string;
+    returnDate: string;
+    tripStatus: string;
+    registered: boolean;
+    consent: string;
+    fee: number;
+    feePaid: number;
+    receiptNo: string | null;
+    departed: boolean;
+    returned: boolean;
+    overrideNote: string | null;
+  }[];
+  teams: {
+    id: number;
+    sport: string;
+    event: string;
+    date: string;
+    role: string;
+    position: string | null;
+    jerseyNo: number | null;
+    status: string;
+    consent: string;
+  }[];
+  achievements: { id: number; date: string; event: string; position: string; notes: string | null }[];
+  fines: { key: string; date: string; source: "Late arrival" | "Violation"; detail: string; amount: number; paid: boolean; href?: string }[];
 };
 
-const money = (n: number) => `Rs. ${n.toLocaleString()}`;
+const cap = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 
 export async function getStudentAudit(rollNo: string): Promise<StudentAudit | null> {
   await requireUser(["ADMIN", "PRINCIPAL"]);
@@ -51,70 +119,102 @@ export async function getStudentAudit(rollNo: string): Promise<StudentAudit | nu
   const s = await prisma.student.findUnique({
     where: { rollNo },
     include: {
-      lateRecords: { orderBy: { lateDate: "desc" }, include: { recordedBy: { select: { fullName: true } } } },
+      lateRecords: { orderBy: [{ lateDate: "desc" }], include: { recordedBy: { select: { fullName: true } } } },
       violations: { orderBy: { incidentDate: "desc" }, include: { type: true, recordedBy: { select: { fullName: true } } } },
-      trips: { include: { trip: true }, orderBy: { createdAt: "desc" } },
-      teams: { include: { team: { include: { sport: true, event: true } } }, orderBy: { createdAt: "desc" } },
+      trips: { include: { trip: true } },
+      teams: { include: { team: { include: { sport: true, event: true } } } },
       achievements: { orderBy: { achievedOn: "desc" } },
     },
   });
   if (!s) return null;
+  const sectionRow = await prisma.section.findUnique({ where: { name: s.section }, select: { year: true } });
 
-  const events: AuditEvent[] = [];
-  for (const r of s.lateRecords) {
-    const fine = Number(r.fineAmount);
-    events.push({
-      date: fromDbDate(r.lateDate),
-      kind: "late",
-      title: `Late ${r.minutesLate} min · ${REASON_LABELS[r.reason]}`,
-      detail: `Arrived ${formatTime(r.arrivedAt, settings.timezone)} · ${ACTION_LABELS[r.actionTaken]}${fine ? ` · fine ${money(fine)}` : ""}${r.remarks ? ` · “${r.remarks}”` : ""} · by ${r.recordedBy.fullName}`,
-      badge: fine ? (r.finePaid ? "Fine paid" : "Fine unpaid") : undefined,
-    });
-  }
-  for (const v of s.violations) {
-    const fine = Number(v.fineAmount);
-    events.push({
-      date: fromDbDate(v.incidentDate),
-      kind: "violation",
-      title: `${v.type.name} · ${SEVERITY_LABELS[v.severity]}`,
-      detail: `${v.description}${v.location ? ` · at ${v.location}` : ""} · ${VIOLATION_ACTION_LABELS[v.actionTaken]}${v.suspensionDays ? ` (${v.suspensionDays} days)` : ""}${fine ? ` · fine ${money(fine)} ${v.finePaid ? "paid" : "unpaid"}` : ""}${v.closingNote ? ` · closed: ${v.closingNote}` : ""} · by ${v.recordedBy.fullName}`,
-      badge: CASE_STATUS_LABELS[v.status],
-      href: `/violations/${v.id}`,
-    });
-  }
-  for (const p of s.trips) {
-    const fee = Number(p.trip.feeAmount);
-    events.push({
-      date: fromDbDate(p.trip.departDate),
-      kind: "trip",
-      title: `Trip: ${p.trip.title}`,
-      detail: `${p.trip.destination} · ${p.status.toLowerCase()} · consent ${CONSENT_LABELS[p.consent].toLowerCase()}${fee ? ` · fee ${money(Number(p.feePaid))} of ${money(fee)}` : ""}${p.overrideNote ? ` · override: ${p.overrideNote}` : ""}`,
-      href: `/trips/${p.tripId}`,
-    });
-  }
-  for (const m of s.teams) {
-    events.push({
+  const today = localParts(new Date(), settings.timezone).date;
+  const thisMonth = today.slice(0, 7);
+
+  const lates = s.lateRecords.map((r) => ({
+    id: r.id,
+    date: fromDbDate(r.lateDate),
+    time: formatTime(r.arrivedAt, settings.timezone),
+    minutesLate: r.minutesLate,
+    reason: REASON_LABELS[r.reason],
+    action: ACTION_LABELS[r.actionTaken],
+    fine: Number(r.fineAmount),
+    finePaid: r.finePaid,
+    parentNotified: r.parentNotified,
+    remarks: r.remarks,
+    recordedBy: r.recordedBy.fullName,
+  }));
+  const violations = s.violations.map((v) => ({
+    id: v.id,
+    date: fromDbDate(v.incidentDate),
+    time: v.incidentTime,
+    type: v.type.name,
+    severity: SEVERITY_LABELS[v.severity],
+    severityKey: v.severity,
+    location: v.location,
+    description: v.description,
+    reportedBy: v.reportedBy,
+    action: VIOLATION_ACTION_LABELS[v.actionTaken],
+    suspensionDays: v.suspensionDays,
+    fine: Number(v.fineAmount),
+    finePaid: v.finePaid,
+    status: CASE_STATUS_LABELS[v.status],
+    open: v.status === "OPEN",
+    closingNote: v.closingNote,
+    recordedBy: v.recordedBy.fullName,
+  }));
+  const trips = s.trips
+    .map((p) => ({
+      id: p.tripId,
+      title: p.trip.title,
+      destination: p.trip.destination,
+      departDate: fromDbDate(p.trip.departDate),
+      returnDate: fromDbDate(p.trip.returnDate),
+      tripStatus: TRIP_STATUS_LABELS[p.trip.status],
+      registered: p.status === "REGISTERED",
+      consent: CONSENT_LABELS[p.consent],
+      fee: Number(p.trip.feeAmount),
+      feePaid: Number(p.feePaid),
+      receiptNo: p.receiptNo,
+      departed: !!p.departedAt,
+      returned: !!p.returnedAt,
+      overrideNote: p.overrideNote,
+    }))
+    .sort((a, b) => (a.departDate < b.departDate ? 1 : -1));
+  const teams = s.teams
+    .map((m) => ({
+      id: m.teamId,
+      sport: m.team.sport.name,
+      event: m.team.event.name,
       date: fromDbDate(m.team.event.startDate),
-      kind: "sport",
-      title: `${m.team.sport.name} · ${m.team.event.name}`,
-      detail: `${m.role}${m.position ? `, ${m.position}` : ""}${m.jerseyNo ? ` · #${m.jerseyNo}` : ""} · ${m.status.toLowerCase()} · consent ${CONSENT_LABELS[m.consent].toLowerCase()}${m.overrideNote ? ` · override: ${m.overrideNote}` : ""}`,
-      href: `/sports/teams/${m.teamId}`,
-    });
-  }
-  for (const a of s.achievements) {
-    events.push({
-      date: fromDbDate(a.achievedOn),
-      kind: "achievement",
-      title: `${a.position} · ${a.event}`,
-      detail: a.notes ?? "",
-    });
-  }
-  events.sort((a, b) => (a.date < b.date ? 1 : -1));
+      role: m.role,
+      position: m.position,
+      jerseyNo: m.jerseyNo,
+      status: cap(m.status),
+      consent: CONSENT_LABELS[m.consent],
+    }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+  const achievements = s.achievements.map((a) => ({
+    id: a.id,
+    date: fromDbDate(a.achievedOn),
+    event: a.event,
+    position: a.position,
+    notes: a.notes,
+  }));
+  const fines: StudentAudit["fines"] = [
+    ...lates.filter((l) => l.fine > 0).map((l) => ({ key: `l${l.id}`, date: l.date, source: "Late arrival" as const, detail: `${l.minutesLate} min late · ${l.reason}`, amount: l.fine, paid: l.finePaid })),
+    ...violations.filter((v) => v.fine > 0).map((v) => ({ key: `v${v.id}`, date: v.date, source: "Violation" as const, detail: v.type, amount: v.fine, paid: v.finePaid, href: `/violations/${v.id}` })),
+  ].sort((a, b) => (a.date < b.date ? 1 : -1));
 
-  const year = fromDbDate(new Date()).slice(0, 4);
-  const unpaid =
-    s.lateRecords.filter((r) => Number(r.fineAmount) > 0 && !r.finePaid).reduce((a, r) => a + Number(r.fineAmount), 0) +
-    s.violations.filter((v) => Number(v.fineAmount) > 0 && !v.finePaid).reduce((a, v) => a + Number(v.fineAmount), 0);
+  const lateTrend: StudentAudit["lateTrend"] = [];
+  const [y, m] = thisMonth.split("-").map(Number);
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(y, m - 1 - i, 1));
+    const key = d.toISOString().slice(0, 7);
+    lateTrend.push({ month: key, count: lates.filter((l) => l.date.startsWith(key)).length });
+  }
+  const latesThisMonth = lateTrend[11].count;
 
   return {
     student: {
@@ -123,22 +223,35 @@ export async function getStudentAudit(rollNo: string): Promise<StudentAudit | nu
       fatherName: s.fatherName,
       program: s.program,
       section: s.section,
+      sectionYear: sectionRow?.year === "FIRST" ? "1st year" : sectionRow?.year === "SECOND" ? "2nd year" : null,
       parentPhone: s.parentPhone,
       studentPhone: s.studentPhone,
       photoUrl: s.photoUrl,
       status: STUDENT_STATUS_LABELS[s.status],
+      active: s.status === "ACTIVE",
       addedOn: fromDbDate(s.createdAt),
+      updatedOn: fromDbDate(s.updatedAt),
     },
     totals: {
-      lates: s.lateRecords.length,
-      latesThisYear: s.lateRecords.filter((r) => fromDbDate(r.lateDate).startsWith(year)).length,
-      violations: s.violations.length,
-      openCases: s.violations.filter((v) => v.status === "OPEN").length,
-      unpaidFines: unpaid,
-      trips: s.trips.length,
-      teams: s.teams.length,
-      achievements: s.achievements.length,
+      lates: lates.length,
+      latesThisMonth,
+      monthLevel: strikeLevel(latesThisMonth, settings),
+      avgMinutesLate: lates.length ? Math.round(lates.reduce((a, l) => a + l.minutesLate, 0) / lates.length) : 0,
+      violations: violations.length,
+      openCases: violations.filter((v) => v.open).length,
+      severeCases: s.violations.filter((v) => v.severity === "MAJOR" || v.severity === "SEVERE").length,
+      finesTotal: fines.reduce((a, f) => a + f.amount, 0),
+      finesUnpaid: fines.filter((f) => !f.paid).reduce((a, f) => a + f.amount, 0),
+      trips: trips.length,
+      teams: teams.length,
+      achievements: achievements.length,
     },
-    events,
+    lateTrend,
+    lates,
+    violations,
+    trips,
+    teams,
+    achievements,
+    fines,
   };
 }
