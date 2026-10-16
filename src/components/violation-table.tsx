@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { Avatar, Pill, StrikeBadge, Table, Td, Th } from "@/components/ui";
+import { Avatar, Pill, StrikeBadge, Table, Td, Th, buttonClass } from "@/components/ui";
 import { SEVERITY_LABELS, SEVERITY_LEVEL, VIOLATION_ACTION_LABELS } from "@/lib/labels";
 import { formatDate, fromDbDate } from "@/lib/time";
 import type { ViolationRow } from "@/lib/violations";
 
 /** Violation cases, shared by the search view and the day view. */
-export function ViolationTable({ rows }: { rows: ViolationRow[] }) {
+export function ViolationTable({ rows, manage = false }: { rows: ViolationRow[]; manage?: boolean }) {
   return (
     <Table>
       <thead>
@@ -15,6 +15,11 @@ export function ViolationTable({ rows }: { rows: ViolationRow[] }) {
           <Th>Violation</Th>
           <Th>Action / fine</Th>
           <Th>Status</Th>
+          {manage && (
+            <Th className="no-print text-right">
+              <span className="sr-only">Manage</span>
+            </Th>
+          )}
         </tr>
       </thead>
       <tbody>
@@ -66,6 +71,13 @@ export function ViolationTable({ rows }: { rows: ViolationRow[] }) {
             <Td>
               <Pill tone={v.status === "OPEN" ? "accent" : "neutral"}>{v.status === "OPEN" ? "Open" : "Closed"}</Pill>
             </Td>
+            {manage && (
+            <Td className="no-print text-right">
+              <Link href={`/violations/${v.id}`} className={buttonClass(v.status === "OPEN" ? "primary" : "secondary", "sm")}>
+                Manage
+              </Link>
+            </Td>
+          )}
           </tr>
         ))}
       </tbody>

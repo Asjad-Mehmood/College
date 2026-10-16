@@ -67,7 +67,9 @@ async function Content({ searchParams }: { searchParams: SP }) {
 type Params = Awaited<SP>;
 
 async function MonthView({ params }: { params: Params }) {
-  await requireUser(["ADMIN", "PRINCIPAL"]);
+  const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const manage = can.manageRecords(user.role);
+  const openCases = await prisma.violation.count({ where: { status: "OPEN" } });
   const settings = await getSettings();
   const today = localParts(new Date(), settings.timezone).date;
   const thisMonth = today.slice(0, 7);
@@ -99,6 +101,19 @@ async function MonthView({ params }: { params: Params }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {openCases > 0 && (
+        <Link
+          href="/violations?view=search&status=OPEN"
+          className="no-print flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-accent-soft px-5 py-3 text-sm font-medium text-accent-ink hover:border-accent/60"
+        >
+          <span>
+            {openCases} open {openCases === 1 ? "case" : "cases"} need attention
+          </span>
+          <span className="inline-flex items-center gap-1">
+            Review and manage <ChevronRight className="size-4" aria-hidden />
+          </span>
+        </Link>
+      )}
       <Card className="no-print overflow-hidden">
         <MonthCalendar
           basePath="/violations"
@@ -152,7 +167,7 @@ async function MonthView({ params }: { params: Params }) {
             {rows.length === 0 ? (
               <EmptyState icon={<CalendarX className="size-5" />} title="No violations on this day" />
             ) : (
-              <ViolationTable rows={rows} />
+              <ViolationTable rows={rows} manage={manage} />
             )}
           </>
         ) : (
@@ -195,7 +210,8 @@ async function HeaderActions({ searchParams }: { searchParams: SP }) {
 }
 
 async function Register({ params }: { params: Params }) {
-  await requireUser(["ADMIN", "PRINCIPAL"]);
+  const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const manage = can.manageRecords(user.role);
   const filters = parseViolationFilters(params);
   const settings = await getSettings();
   const [{ rows, total, range }, classes, types] = await Promise.all([
@@ -238,7 +254,7 @@ async function Register({ params }: { params: Params }) {
             Recorded violations appear here.
           </EmptyState>
         ) : (
-          <ViolationTable rows={rows} />
+          <ViolationTable rows={rows} manage={manage} />
         )}
         {pages > 1 && (
           <div className="no-print flex items-center justify-between border-t border-line px-5 py-3">
