@@ -136,7 +136,8 @@ async function MonthView({ params }: { params: Params }) {
           </span>
         </Link>
       )}
-      <Card className="no-print overflow-hidden">
+      <div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <Card className="no-print overflow-hidden lg:sticky lg:top-6">
         <MonthCalendar
           basePath="/violations"
           month={month}
@@ -146,12 +147,13 @@ async function MonthView({ params }: { params: Params }) {
           counts={counts}
           noun={["case", "cases"]}
         />
-        <p className="border-t border-line px-5 py-3 text-[13px] text-ink-2">
+        <p className="border-t border-line px-4 py-3 text-[12px] leading-relaxed text-ink-2">
           <span className="font-semibold text-ink tabular">{monthTotal}</span> {monthTotal === 1 ? "violation" : "violations"} in{" "}
           {formatMonth(`${month}-01`)} · {students.length} {students.length === 1 ? "student" : "students"} · on {daysWithCases.length}{" "}
           {daysWithCases.length === 1 ? "day" : "days"}
         </p>
       </Card>
+      <div className="flex min-w-0 flex-col gap-4">
 
       {date && (
         <div className="hidden print:block">
@@ -198,6 +200,9 @@ async function MonthView({ params }: { params: Params }) {
           </EmptyState>
         )}
       </Card>
+
+      </div>
+      </div>
 
       <div className="no-print grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[

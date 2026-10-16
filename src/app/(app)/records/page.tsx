@@ -127,7 +127,8 @@ async function MonthView({ params }: { params: Params }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="no-print overflow-hidden">
+      <div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <Card className="no-print overflow-hidden lg:sticky lg:top-6">
         <MonthCalendar
           basePath="/records"
           month={month}
@@ -137,7 +138,7 @@ async function MonthView({ params }: { params: Params }) {
           counts={counts}
           noun={["late arrival", "late arrivals"]}
         />
-        <p className="border-t border-line px-5 py-3 text-[13px] text-ink-2">
+        <p className="border-t border-line px-4 py-3 text-[12px] leading-relaxed text-ink-2">
           <span className="font-semibold text-ink tabular">{monthTotal}</span> late {monthTotal === 1 ? "arrival" : "arrivals"} in{" "}
           {formatMonth(`${month}-01`)} · {students.length} {students.length === 1 ? "student" : "students"} · on {daysWithRecords.length}{" "}
           {daysWithRecords.length === 1 ? "day" : "days"}
@@ -149,6 +150,7 @@ async function MonthView({ params }: { params: Params }) {
           )}
         </p>
       </Card>
+      <div className="flex min-w-0 flex-col gap-4">
 
       {/* Shown only on paper */}
       {date && (
@@ -202,6 +204,9 @@ async function MonthView({ params }: { params: Params }) {
           </EmptyState>
         )}
       </Card>
+      </div>
+      </div>
+
       <div className="no-print grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
           { label: "Late arrivals", value: monthTotal.toLocaleString() },

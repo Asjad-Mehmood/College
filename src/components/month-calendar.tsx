@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { FilterForm } from "@/components/filter-form";
-import { Select, buttonClass, cx } from "@/components/ui";
+import { Select, cx } from "@/components/ui";
 import { addMonths, formatDate, formatMonth, monthGrid } from "@/lib/time";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -47,46 +47,41 @@ export function MonthCalendar({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-1">
-          <Link href={href({ month: prev })} className={buttonClass("ghost", "sm", "px-2")} aria-label={`Previous month, ${formatMonth(`${prev}-01`)}`}>
-            <ChevronLeft className="size-4.5" aria-hidden />
+      <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
+        <Link href={href({ month: prev })} className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink" aria-label={`Previous month, ${formatMonth(`${prev}-01`)}`}>
+          <ChevronLeft className="size-5 shrink-0" aria-hidden />
+        </Link>
+        {/* Keyed by month so the dropdown follows arrow navigation. */}
+        <FilterForm key={month} action={basePath} className="min-w-0">
+          <Select
+            name="month"
+            defaultValue={month}
+            aria-label="Jump to month"
+            className="h-8 w-auto border-transparent bg-transparent pr-7 text-center text-[15px] font-semibold shadow-none hover:bg-surface-2"
+          >
+            {months.map((m) => (
+              <option key={m} value={m}>
+                {formatMonth(`${m}-01`)}
+              </option>
+            ))}
+          </Select>
+        </FilterForm>
+        {month < thisMonth ? (
+          <Link href={href({ month: next })} className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink" aria-label={`Next month, ${formatMonth(`${next}-01`)}`}>
+            <ChevronRight className="size-5 shrink-0" aria-hidden />
           </Link>
-          <h2 className="min-w-36 text-center text-base font-semibold">{formatMonth(`${month}-01`)}</h2>
-          {month < thisMonth ? (
-            <Link href={href({ month: next })} className={buttonClass("ghost", "sm", "px-2")} aria-label={`Next month, ${formatMonth(`${next}-01`)}`}>
-              <ChevronRight className="size-4.5" aria-hidden />
-            </Link>
-          ) : (
-            <span className={buttonClass("ghost", "sm", "pointer-events-none px-2 opacity-30")} aria-hidden>
-              <ChevronRight className="size-4.5" />
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {month !== thisMonth && (
-            <Link href={basePath} className={buttonClass("secondary", "sm")}>
-              This month
-            </Link>
-          )}
-          {/* Keyed by month so the dropdown follows arrow navigation. */}
-          <FilterForm key={month} action={basePath}>
-            <Select name="month" defaultValue={month} aria-label="Jump to month" className="h-8 w-auto text-[13px]">
-              {months.map((m) => (
-                <option key={m} value={m}>
-                  {formatMonth(`${m}-01`)}
-                </option>
-              ))}
-            </Select>
-          </FilterForm>
-        </div>
+        ) : (
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-2 opacity-30" aria-hidden>
+            <ChevronRight className="size-5 shrink-0" />
+          </span>
+        )}
       </div>
 
-      <div className="p-2 sm:p-4">
-        <div className="grid grid-cols-7 gap-1 sm:gap-2" role="grid" aria-label={formatMonth(`${month}-01`)}>
+      <div className="px-3 pb-3">
+        <div className="grid grid-cols-7 gap-1" role="grid" aria-label={formatMonth(`${month}-01`)}>
           {WEEKDAYS.map((d, i) => (
-            <div key={d} role="columnheader" className={cx("pb-1 text-center text-[11px] font-semibold tracking-wide uppercase", i === 6 ? "text-muted/60" : "text-muted")}>
-              {d}
+            <div key={d} role="columnheader" className={cx("py-1 text-center text-[11px] font-medium", i === 6 ? "text-muted/60" : "text-muted")}>
+              {d.slice(0, 2)}
             </div>
           ))}
           {monthGrid(month).map((ymd, i) => {
@@ -100,27 +95,24 @@ export function MonthCalendar({
             const label = `${formatDate(ymd, { weekday: true })}: ${count === 0 ? "none" : `${count} ${count === 1 ? noun[0] : noun[1]}`}`;
             const body = (
               <>
-                <span
-                  className={cx(
-                    "flex size-6 items-center justify-center rounded-full text-[12px] font-medium sm:text-[13px]",
-                    isToday ? "bg-ink text-page" : strong ? "text-white" : "text-ink-2",
-                  )}
-                >
-                  {day}
-                </span>
-                <span className={cx("self-end text-base leading-none font-semibold tabular sm:text-xl", strong ? "text-white" : count ? "text-ink" : "text-muted/50")}>
-                  {count > 0 ? count : future ? "" : "–"}
+                <span className={cx("text-[13px] leading-none", isSelected ? "font-semibold" : "font-medium")}>{day}</span>
+                <span className={cx("mt-1 h-3 text-[10px] leading-none font-semibold tabular", isSelected ? "text-page/80" : strong ? "text-white" : "text-ink-2")}>
+                  {count > 0 ? count : ""}
                 </span>
               </>
             );
             const cellClass = cx(
-              "flex aspect-square flex-col justify-between rounded-lg border p-1 sm:aspect-auto sm:min-h-16 sm:p-2",
-              isSelected ? "border-transparent ring-2 ring-ink ring-offset-2 ring-offset-surface" : "border-line",
-              !bg && "bg-surface",
+              "relative flex h-11 flex-col items-center justify-center rounded-lg",
+              isSelected
+                ? "bg-ink text-page shadow-card"
+                : strong
+                  ? "text-white"
+                  : "text-ink",
+              isToday && !isSelected && "ring-2 ring-accent ring-inset",
             );
             if (future) {
               return (
-                <div key={ymd} role="gridcell" aria-label={label} className={cx(cellClass, "opacity-40")}>
+                <div key={ymd} role="gridcell" aria-label={label} className={cx(cellClass, "text-muted/50")}>
                   {body}
                 </div>
               );
@@ -134,20 +126,29 @@ export function MonthCalendar({
                 aria-label={label}
                 aria-current={isSelected ? "date" : undefined}
                 title={label}
-                className={cx(cellClass, "transition-shadow hover:border-line-strong hover:shadow-card focus-visible:outline-2 focus-visible:outline-accent")}
-                style={bg ? { background: bg } : undefined}
+                className={cx(cellClass, !isSelected && "hover:ring-2 hover:ring-line-strong hover:ring-inset", "focus-visible:outline-2 focus-visible:outline-accent")}
+                style={bg && !isSelected ? { background: bg } : undefined}
               >
                 {body}
               </Link>
             );
           })}
         </div>
-        <div className="mt-3 flex items-center justify-end gap-1.5 text-[11px] text-muted" aria-hidden>
-          Fewer
-          {[14, 28, 46, 72].map((p) => (
-            <span key={p} className="size-3 rounded-sm" style={{ background: `color-mix(in oklab, var(--accent) ${p}%, var(--surface))` }} />
-          ))}
-          More
+        <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-muted">
+          {month !== thisMonth || selected !== today ? (
+            <Link href={basePath} className="font-medium text-accent-ink hover:underline">
+              Go to today
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="flex items-center gap-1" aria-hidden>
+            Fewer
+            {[14, 28, 46, 72].map((p) => (
+              <span key={p} className="size-2.5 rounded-sm" style={{ background: `color-mix(in oklab, var(--accent) ${p}%, var(--surface))` }} />
+            ))}
+            More
+          </span>
         </div>
       </div>
     </div>
