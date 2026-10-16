@@ -1,26 +1,114 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  color-scheme: light;
+  --page: #f5f5f2;
+  --surface: #fdfdfc;
+  --surface-2: #f1f0ec;
+  --surface-3: #e8e7e1;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #7b7973;
+  --line: #e4e3dc;
+  --line-strong: #c3c2b7;
+  --accent: #2a78d6;
+  --accent-hover: #256abf;
+  --accent-ink: #1c5cab;
+  --accent-soft: #e6f0fc;
+  --on-accent: #ffffff;
+  --success-ink: #006300;
+  --danger-ink: #b42323;
+  /* Status colours are fixed: they never stand in for a data series. */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --shadow: 0 1px 2px rgb(11 11 11 / 0.04), 0 1px 1px rgb(11 11 11 / 0.03);
+  --shadow-lg: 0 12px 32px -12px rgb(11 11 11 / 0.18), 0 2px 6px rgb(11 11 11 / 0.05);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #222220;
+    --surface-3: #2c2c2a;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #8f8d86;
+    --line: #2c2c2a;
+    --line-strong: #44443f;
+    --accent: #3987e5;
+    --accent-hover: #5598e7;
+    --accent-ink: #86b6ef;
+    --accent-soft: #15253a;
+    --on-accent: #ffffff;
+    --success-ink: #3fbf3f;
+    --danger-ink: #f08080;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 0.7);
   }
 }
 
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-success-ink: var(--success-ink);
+  --color-danger-ink: var(--danger-ink);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --shadow-card: var(--shadow);
+  --shadow-pop: var(--shadow-lg);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Printing: hide app chrome, keep the content. */
+@media print {
+  :root {
+    color-scheme: light;
+    --page: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f3f3f3;
+    --ink: #000000;
+    --ink-2: #333333;
+    --muted: #555555;
+    --line: #cccccc;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-plain {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+  body {
+    background: #fff;
+  }
 }

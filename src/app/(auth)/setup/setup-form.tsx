@@ -1,0 +1,37 @@
+"use client";
+
+import { useActionState } from "react";
+import { Button, Card, Field, FormMessage, Input } from "@/components/ui";
+import { setupAdmin } from "../actions";
+
+export function SetupForm() {
+  const [state, action, pending] = useActionState(setupAdmin, null);
+  return (
+    <Card className="p-6">
+      <form action={action} className="flex flex-col gap-4">
+        <div>
+          <h1 className="text-lg font-semibold">Set up the portal</h1>
+          <p className="text-[13px] text-muted">
+            Create the Discipline In-Charge account. You can add gate staff and the Principal afterwards.
+          </p>
+        </div>
+        <Field label="College name">
+          <Input name="collegeName" required placeholder="Government College, Lahore" />
+        </Field>
+        <Field label="Your full name">
+          <Input name="fullName" required autoComplete="name" />
+        </Field>
+        <Field label="Username">
+          <Input name="username" required autoCapitalize="none" autoComplete="username" />
+        </Field>
+        <Field label="Password" hint="At least 8 characters.">
+          <Input name="password" type="password" required minLength={8} autoComplete="new-password" />
+        </Field>
+        <FormMessage state={state} />
+        <Button type="submit" variant="primary" size="lg" disabled={pending}>
+          {pending ? "Creating…" : "Create account"}
+        </Button>
+      </form>
+    </Card>
+  );
+}

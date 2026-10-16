@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# College Late-Coming Portal
 
-## Getting Started
+Late-arrival and discipline management for the college gate and the Discipline Office.
+Built with Next.js 16, Prisma 7 and Neon Postgres, and deployed on Vercel.
 
-First, run the development server:
+## What it does
+
+| Screen | Who | Purpose |
+| --- | --- | --- |
+| **Gate check-in** (`/gate`) | Gate staff, Discipline In-Charge | Scan or type a roll number. The screen shows the student's photo, the month's strike count and minutes late. Choose a reason with keys **1–5** and save with **Enter**. Gate staff can then message the parent on WhatsApp/SMS and print a classroom entry slip. |
+| **Dashboard** (`/dashboard`) | In-Charge, Principal | Late today vs yesterday, habitual offenders, ID cards in custody, pending fines, a 30-day trend and a by-program breakdown. |
+| **Late records** (`/records`) | In-Charge, Principal | Searchable ledger filtered by date range, program, section, strike level, habitual offenders, held ID cards or unpaid fines. Exports to Excel or CSV and prints to PDF. |
+| **Students** (`/students`, `/students/[roll]`) | In-Charge, Principal | Student directory and discipline profile, with call/WhatsApp buttons, full history and a printable warning letter. |
+| **Settings** (`/settings`) | In-Charge | Summer/winter timing switch, grace period, escalation thresholds, default fine, Excel/CSV student import and staff accounts. |
+
+The **escalation engine** colours every count by level, and each level also gets an icon and a label:
+below the habitual threshold → verbal warning; the habitual threshold (default 3) → confiscate the ID card;
+the critical threshold (default 5) → fine or parent meeting. Thresholds are set in Settings.
+
+Notes:
+
+- Times are calculated on the server in the college timezone (default `Asia/Karachi`), so device clocks don't matter.
+- A student can be logged late at most once per day.
+- Parent messages open WhatsApp or the SMS app with the text pre-filled. No paid gateway is needed.
+
+## Setup
+
+1. Set `DB_URL` to your Neon connection string, in Vercel and in `.env.local` locally (see `.env.example`).
+2. Deploy. `vercel-build` runs `prisma migrate deploy` before building, which creates the tables.
+3. Open the site and follow **Set up the portal** to create the Discipline In-Charge account. This only works
+   while no accounts exist.
+4. In **Settings**, import the student list. Use the
+   [template](public/student-import-template.csv) as a guide. Headers are matched loosely, so `Roll No`,
+   `roll_no` and `Student ID` all work. Then add accounts for gate staff and the Principal.
+
+## Local development
 
 ```bash
+npm install
+npm run db:migrate      # apply migrations to DB_URL
+npm run db:seed         # optional demo data — local databases only
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The seed creates `admin`, `gate` and `principal` accounts, all with the password `password123`, plus about 120
+students and six weeks of history. It refuses to run against a non-local database.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`DB_URL` may also point to a local Postgres (`localhost`/`127.0.0.1`). The app then connects over TCP
+instead of Neon's WebSocket driver.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Script | |
+| --- | --- |
+| `npm run db:migrate` | Create/apply a migration after editing `prisma/schema.prisma` |
+| `npm run db:deploy` | Apply pending migrations (what Vercel runs) |
+| `npm run db:studio` | Browse the database |
+| `npm run db:seed` | Load demo data |

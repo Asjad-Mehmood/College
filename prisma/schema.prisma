@@ -9,3 +9,141 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum Role {
+  ADMIN // Discipline In-Charge
+  GATE // Gate staff / proctor
+  PRINCIPAL // Read-only viewer
+}
+
+enum StudentStatus {
+  ACTIVE
+  STRUCK_OFF
+  GRADUATED
+}
+
+enum LateReason {
+  TRANSPORT
+  TRAFFIC
+  MEDICAL
+  WEATHER
+  NO_EXCUSE
+}
+
+enum DisciplineAction {
+  VERBAL_WARNING
+  WRITTEN_WARNING
+  ID_CONFISCATED
+  FINE
+  PARENT_CALLED
+  DETENTION
+  PARENT_MEETING
+}
+
+enum CardStatus {
+  NONE
+  HELD
+  RETURNED
+}
+
+enum Schedule {
+  SUMMER
+  WINTER
+}
+
+model Student {
+  rollNo       String        @id @map("roll_no") @db.VarChar(20)
+  fullName     String        @map("full_name") @db.VarChar(100)
+  fatherName   String        @map("father_name") @db.VarChar(100)
+  program      String        @db.VarChar(50)
+  section      String        @db.VarChar(20)
+  studentPhone String?       @map("student_phone") @db.VarChar(20)
+  parentPhone  String        @map("parent_phone") @db.VarChar(20)
+  photoUrl     String?       @map("photo_url") @db.VarChar(255)
+  status       StudentStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  lateRecords LateRecord[]
+
+  @@index([program, section])
+  @@map("students")
+}
+
+model LateRecord {
+  id             Int              @id @default(autoincrement())
+  rollNo         String           @map("roll_no") @db.VarChar(20)
+  // College-local calendar date of the late arrival.
+  lateDate       DateTime         @map("late_date") @db.Date
+  // Exact instant recorded at the gate.
+  arrivedAt      DateTime         @map("arrived_at") @db.Timestamptz(3)
+  minutesLate    Int              @map("minutes_late")
+  reason         LateReason
+  actionTaken    DisciplineAction @default(VERBAL_WARNING) @map("action_taken")
+  cardStatus     CardStatus       @default(NONE) @map("id_card_status")
+  cardReturnedAt DateTime?        @map("card_returned_at") @db.Timestamptz(3)
+  cardReturnNote String?          @map("card_return_note") @db.VarChar(200)
+  fineAmount     Decimal          @default(0) @map("fine_amount") @db.Decimal(8, 2)
+  finePaid       Boolean          @default(false) @map("fine_paid")
+  finePaidAt     DateTime?        @map("fine_paid_at") @db.Timestamptz(3)
+  parentNotified Boolean          @default(false) @map("parent_notified")
+  remarks        String?
+  recordedById   Int              @map("recorded_by")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  student    Student @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
+  recordedBy User    @relation(fields: [recordedById], references: [id])
+
+  // A student can only be logged late once per day.
+  @@unique([rollNo, lateDate])
+  @@index([lateDate])
+  @@index([cardStatus])
+  @@map("late_records")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  fullName     String   @map("full_name") @db.VarChar(100)
+  username     String   @unique @db.VarChar(50)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         Role
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  sessions    Session[]
+  lateRecords LateRecord[]
+
+  @@map("users")
+}
+
+model Session {
+  // SHA-256 of the token stored in the browser cookie.
+  id        String   @id @db.VarChar(64)
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// Single-row table (id = 1) holding the configurable portal rules.
+model PortalSettings {
+  id                Int      @id @default(1)
+  collegeName       String   @default("Government College") @map("college_name") @db.VarChar(150)
+  collegeAddress    String   @default("") @map("college_address") @db.VarChar(255)
+  timezone          String   @default("Asia/Karachi") @db.VarChar(64)
+  schedule          Schedule @default(SUMMER)
+  // "HH:MM" in the college timezone.
+  summerStartTime   String   @default("08:00") @map("summer_start_time") @db.VarChar(5)
+  winterStartTime   String   @default("08:30") @map("winter_start_time") @db.VarChar(5)
+  gracePeriodMins   Int      @default(10) @map("grace_period_mins")
+  habitualThreshold Int      @default(3) @map("habitual_threshold")
+  criticalThreshold Int      @default(5) @map("critical_threshold")
+  defaultFineAmount Decimal  @default(100) @map("default_fine_amount") @db.Decimal(8, 2)
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("portal_settings")
+}
