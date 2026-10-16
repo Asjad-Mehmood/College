@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Download, LayoutGrid, List, MessageCircle, Printer, Upload, UserX } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, LayoutGrid, List, MessageCircle, Printer, Upload, UserX } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
 import type { StudentStatus } from "@/generated/prisma/enums";
 import { FilterForm } from "@/components/filter-form";
@@ -547,9 +547,6 @@ async function SectionHeader({
             {admin && <StudentDialog programs={programs} sections={sectionOpts} defaultSection={section} />}
             <a href={`/class-list/${enc}`} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
               <Printer className="size-4" aria-hidden /> Class list
-            </a>
-            <a href={`/class-list/${enc}?sheet=attendance`} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
-              <ClipboardCheck className="size-4" aria-hidden /> Attendance sheet
             </a>
             <a href={`/api/export/students?section=${enc}${status !== "ACTIVE" ? `&status=${status}` : ""}`} className={buttonClass("secondary")}>
               <Download className="size-4" aria-hidden /> Excel

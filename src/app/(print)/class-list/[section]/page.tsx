@@ -15,34 +15,30 @@ export default function ClassListPage(props: PageProps<"/class-list/[section]">)
     <>
       <PrintToolbar title="Class list" />
       <Suspense fallback={<Skeleton className="mx-auto mt-8 h-[800px] w-full max-w-[210mm] rounded-none" />}>
-        <Sheet params={props.params} searchParams={props.searchParams} />
+        <Sheet params={props.params} />
       </Suspense>
     </>
   );
 }
 
-async function Sheet({ params, searchParams }: { params: PageProps<"/class-list/[section]">["params"]; searchParams: PageProps<"/class-list/[section]">["searchParams"] }) {
+async function Sheet({ params }: { params: PageProps<"/class-list/[section]">["params"] }) {
   await requireUser(["ADMIN", "PRINCIPAL"]);
   const section = decodeURIComponent((await params).section);
-  // "attendance" adds blank day columns for a sign/attendance sheet.
-  const attendance = (await searchParams).sheet === "attendance";
   const [students, row, settings] = await Promise.all([
     prisma.student.findMany({ where: { section, status: "ACTIVE" }, orderBy: { rollNo: "asc" } }),
     prisma.section.findUnique({ where: { name: section } }),
     getSettings(),
   ]);
   const programs = [...new Set(students.map((s) => s.program))].join(", ");
-  const head = attendance
-    ? ["#", "Roll no.", "Name", "Father", ...Array.from({ length: 10 }, () => "")]
-    : ["#", "Roll no.", "Name", "Father / guardian", "Program", "Parent phone", "Signature"];
+  const head = ["#", "Roll no.", "Name", "Father / guardian", "Program", "Parent phone", "Signature"];
   return (
     <div className="px-4 py-8 print:p-0">
-      <style>{`@page { size: A4 ${attendance ? "landscape" : ""}; margin: 12mm; }`}</style>
-      <article className="mx-auto max-w-[297mm] bg-white p-[12mm] text-[13px] leading-relaxed text-black shadow-pop print:max-w-none print:p-0 print:shadow-none">
+      <style>{`@page { size: A4; margin: 12mm; }`}</style>
+      <article className="mx-auto max-w-[210mm] bg-white p-[12mm] text-[13px] leading-relaxed text-black shadow-pop print:max-w-none print:p-0 print:shadow-none">
         <header className="border-b-2 border-black pb-2 text-center">
           <p className="text-lg font-bold tracking-tight uppercase">{settings.collegeName}</p>
           {settings.collegeAddress && <p className="text-[12px]">{settings.collegeAddress}</p>}
-          <p className="mt-0.5 text-[12px] font-semibold tracking-[0.15em] uppercase">{attendance ? "Attendance sheet" : "Class list"}</p>
+          <p className="mt-0.5 text-[12px] font-semibold tracking-[0.15em] uppercase">Class list</p>
         </header>
         <div className="mt-3 flex flex-wrap justify-between gap-2">
           <div>
@@ -75,15 +71,9 @@ async function Sheet({ params, searchParams }: { params: PageProps<"/class-list/
                 <td className="border border-black px-1.5 py-1 font-mono">{s.rollNo}</td>
                 <td className="border border-black px-1.5 py-1">{s.fullName}</td>
                 <td className="border border-black px-1.5 py-1">{s.fatherName}</td>
-                {attendance ? (
-                  Array.from({ length: 10 }, (_, k) => <td key={k} className="w-8 border border-black" />)
-                ) : (
-                  <>
-                    <td className="border border-black px-1.5 py-1">{s.program}</td>
-                    <td className="border border-black px-1.5 py-1 font-mono">{s.parentPhone}</td>
-                    <td className="w-28 border border-black" />
-                  </>
-                )}
+                <td className="border border-black px-1.5 py-1">{s.program}</td>
+                <td className="border border-black px-1.5 py-1 font-mono">{s.parentPhone}</td>
+                <td className="w-28 border border-black" />
               </tr>
             ))}
           </tbody>
