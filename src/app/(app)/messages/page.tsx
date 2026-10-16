@@ -102,7 +102,7 @@ async function Content({ searchParams }: { searchParams: PageProps<"/messages">[
           section: s.section,
           phone: s.parentPhone,
           note: `${g._count._all} late this month`,
-          message: `Respected Parent, your ward ${s.fullName} (Roll No: ${s.rollNo}, ${s.program} ${s.section}) has come late to college ${g._count._all} times this month. Please ensure punctuality; further late arrivals will lead to a fine and a parent meeting. ${sign}`,
+          message: `Respected Parent, your son/daughter ${s.fullName} (Roll No: ${s.rollNo}, ${s.program} ${s.section}) has come late to college ${g._count._all} times this month. Please make sure he/she comes on time; otherwise there will be a fine and you will be called to the college. ${sign}`,
         },
       ];
     });
@@ -121,7 +121,7 @@ async function Content({ searchParams }: { searchParams: PageProps<"/messages">[
       phone: v.student.parentPhone,
       note: `Case #${v.id} · ${v.type.name} · ${formatDate(fromDbDate(v.incidentDate))}`,
       key: `case-${v.id}`,
-      message: `Respected Parent, a discipline case (${v.type.name}, ${formatDate(fromDbDate(v.incidentDate))}) concerning your ward ${v.student.fullName} (Roll No: ${v.rollNo}) is still open. Kindly visit the Discipline Office at your earliest. ${sign}`,
+      message: `Respected Parent, a discipline case (${v.type.name}, ${formatDate(fromDbDate(v.incidentDate))}) about your son/daughter ${v.student.fullName} (Roll No: ${v.rollNo}) is still open. Please come to the Discipline Office as soon as possible. ${sign}`,
     }));
   }
 
@@ -139,7 +139,7 @@ async function Content({ searchParams }: { searchParams: PageProps<"/messages">[
       section: s.section,
       phone: s.parentPhone,
       note: `Rs. ${(owed.get(s.rollNo) ?? 0).toLocaleString()} unpaid`,
-      message: `Respected Parent, fines of Rs. ${(owed.get(s.rollNo) ?? 0).toLocaleString()} for your ward ${s.fullName} (Roll No: ${s.rollNo}) are unpaid. Please clear them at the Discipline Office. ${sign}`,
+      message: `Respected Parent, a fine of Rs. ${(owed.get(s.rollNo) ?? 0).toLocaleString()} for your son/daughter ${s.fullName} (Roll No: ${s.rollNo}) has not been paid. Please pay it at the Discipline Office. ${sign}`,
     }));
   }
 

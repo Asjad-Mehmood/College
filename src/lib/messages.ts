@@ -31,8 +31,8 @@ export function parentLateMessage(args: {
   collegeName: string;
 }) {
   return (
-    `Respected Parent, your ward ${args.studentName} (Roll No: ${args.rollNo}, ${args.className}) ` +
-    `arrived late to college today at ${args.time}. ` +
+    `Respected Parent, your son/daughter ${args.studentName} (Roll No: ${args.rollNo}, ${args.className}) ` +
+    `came late to college today at ${args.time}. ` +
     `This is the ${ordinal(args.monthCount)} late arrival this month. ` +
     `– Discipline In-Charge, ${args.collegeName}`
   );

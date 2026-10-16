@@ -177,8 +177,8 @@ export function violationParentMessage(args: {
   collegeName: string;
 }) {
   return (
-    `Respected Parent, your ward ${args.studentName} (Roll No: ${args.rollNo}, ${args.className}) ` +
-    `was found involved in a discipline violation (${args.typeName}) on ${args.date}. ` +
+    `Respected Parent, your son/daughter ${args.studentName} (Roll No: ${args.rollNo}, ${args.className}) ` +
+    `broke a college rule (${args.typeName}) on ${args.date}. ` +
     `Action taken: ${args.action}${args.fineAmount > 0 ? `, fine Rs. ${args.fineAmount}` : ""}. ` +
     `Please contact the Discipline Office. – Discipline In-Charge, ${args.collegeName}`
   );

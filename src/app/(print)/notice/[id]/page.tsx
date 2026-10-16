@@ -65,28 +65,28 @@ async function Notice({ params }: { params: PageProps<"/notice/[id]">["params"] 
 
         <p className="mt-6">
           <span className="font-semibold">Subject: </span>
-          <span className="font-semibold underline">Notice of discipline violation by your ward</span>
+          <span className="font-semibold underline">Complaint about your son/daughter</span>
         </p>
 
         <p className="mt-5">Respected Sir / Madam,</p>
         <p className="mt-3 text-justify">
-          This is to inform you that your ward <span className="font-semibold">{s.fullName}</span>, Roll No.{" "}
-          <span className="font-semibold">{s.rollNo}</span>, student of{" "}
+          We want to inform you that your son/daughter <span className="font-semibold">{s.fullName}</span>, Roll No.{" "}
+          <span className="font-semibold">{s.rollNo}</span>, class{" "}
           <span className="font-semibold">
             {s.program} ({s.section})
           </span>
-          , was found involved in the following violation of college discipline:
+          , has broken a college rule. The details are below:
         </p>
 
         <table className="mt-4 w-full border-collapse text-[13px]">
           <tbody>
             {[
-              ["Violation", `${v.type.name} (${SEVERITY_LABELS[v.severity]})`],
+              ["What he/she did", `${v.type.name} (${SEVERITY_LABELS[v.severity]})`],
               ["Date & time", `${formatDate(date, { weekday: true })}${v.incidentTime ? `, ${formatMinutes(parseHHMM(v.incidentTime))}` : ""}`],
               ...(v.location ? [["Place", v.location]] : []),
-              ["Details", v.description],
+              ["What happened", v.description],
               ["Action taken", action],
-              ...(fine > 0 ? [["Fine", `Rs. ${fine.toLocaleString()} ${v.finePaid ? "(paid)" : "(to be paid at the Discipline Office)"}`]] : []),
+              ...(fine > 0 ? [["Fine", `Rs. ${fine.toLocaleString()} ${v.finePaid ? "(paid)" : "(please pay at the Discipline Office)"}`]] : []),
             ].map(([k, val]) => (
               <tr key={k}>
                 <th className="w-36 border border-black bg-neutral-100 px-3 py-1.5 text-left align-top font-semibold">{k}</th>
@@ -98,25 +98,24 @@ async function Notice({ params }: { params: PageProps<"/notice/[id]">["params"] 
 
         {previous > 0 && (
           <p className="mt-4 text-justify">
-            Please note that this is not the first such case: {previous} earlier{" "}
-            {previous === 1 ? "violation is" : "violations are"} on your ward&apos;s record.
+            This is not the first time. Your child already has {previous} {previous === 1 ? "complaint" : "complaints"} on college record.
           </p>
         )}
 
         <p className="mt-4 text-justify">
           {summons ? (
             <>
-              You are requested to <span className="font-semibold">visit the Discipline Office in person on ____________ at ________</span>{" "}
-              to discuss this matter. Failure to appear may result in further disciplinary action as per college rules.
+              Please <span className="font-semibold">come to the Discipline Office yourself on ____________ at ________</span>{" "}
+              to talk about this matter. If you do not come, the college may take stricter action.
             </>
           ) : (
             <>
-              You are requested to counsel your ward so that such behaviour is not repeated. Any further violation will be
-              dealt with strictly as per college rules.
+              Please talk to your child and make sure this does not happen again. If it happens again, the college will take
+              strict action.
             </>
           )}
         </p>
-        <p className="mt-3">Your cooperation in this matter is highly appreciated.</p>
+        <p className="mt-3">Thank you for your cooperation.</p>
 
         <div className="mt-16 flex justify-between gap-8 text-[13px]">
           <div className="text-center">
@@ -130,10 +129,10 @@ async function Notice({ params }: { params: PageProps<"/notice/[id]">["params"] 
         </div>
 
         <div className="mt-12 border-t border-dashed border-black pt-4 text-[13px]">
-          <p className="font-semibold">Parent acknowledgement (to be returned to the Discipline Office)</p>
+          <p className="font-semibold">Parent receipt (cut and send back to the Discipline Office)</p>
           <p className="mt-2">
-            I have received the notice regarding the discipline violation by my ward {s.fullName} (Roll No. {s.rollNo}),
-            case no. {v.id}, and I undertake to ensure it is not repeated.
+            I have received this letter about my son/daughter {s.fullName} (Roll No. {s.rollNo}), case no. {v.id}. I will make sure
+            it does not happen again.
           </p>
           <div className="mt-8 flex justify-between">
             <p>Signature: ______________________</p>

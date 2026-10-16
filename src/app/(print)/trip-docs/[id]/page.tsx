@@ -125,7 +125,7 @@ function Slip({ trip, p, settings }: { trip: FullTrip; p: Row; settings: Setting
             ["Departure", `${formatDate(fromDbDate(trip.departDate), { weekday: true })}, ${t12(trip.departTime)}${trip.meetingPoint ? ` from ${trip.meetingPoint}` : ""}`],
             ["Return", `${formatDate(fromDbDate(trip.returnDate), { weekday: true })}, ${t12(trip.returnTime)}`],
             ["Teacher in charge", `${trip.inChargeName}${trip.inChargePhone ? ` (${trip.inChargePhone})` : ""}`],
-            ...(fee > 0 ? [["Fee", `Rs. ${fee.toLocaleString()}${trip.feeDeadline ? `, to be paid by ${formatDate(fromDbDate(trip.feeDeadline))}` : ""}`]] : []),
+            ...(fee > 0 ? [["Fee", `Rs. ${fee.toLocaleString()}${trip.feeDeadline ? ` (pay by ${formatDate(fromDbDate(trip.feeDeadline))})` : ""}`]] : []),
             ...(trip.itinerary ? [["Plan", trip.itinerary]] : []),
           ].map(([k, v]) => (
             <tr key={k}>
@@ -137,18 +137,18 @@ function Slip({ trip, p, settings }: { trip: FullTrip; p: Row; settings: Setting
       </table>
       <p className="mt-3 text-justify">
         I, <span className="font-semibold">{p.student.fatherName}</span>, father/guardian of{" "}
-        <span className="font-semibold">{p.student.fullName}</span> (Roll No. {p.rollNo}, {p.student.program} {p.student.section}), allow
-        my ward to take part in the above trip. I understand the college will take due care, and my ward will follow the instructions of
-        the accompanying staff.
+        <span className="font-semibold">{p.student.fullName}</span> (Roll No. {p.rollNo}, {p.student.program} {p.student.section}), give
+        permission for my son/daughter to go on this trip. He/she will follow the instructions of the teachers. I will not hold the
+        college responsible for any loss caused by my child&apos;s own carelessness.
       </p>
       <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-3 text-[12px]">
-        <p>Medical conditions / allergies: ____________________</p>
-        <p>Emergency phone: {p.emergencyPhone ?? p.student.parentPhone}</p>
-        <p className="mt-4">Parent&apos;s signature: ____________________</p>
+        <p>Any illness / medicine: ____________________</p>
+        <p>Phone in emergency: {p.emergencyPhone ?? p.student.parentPhone}</p>
+        <p className="mt-4">Father/guardian signature: ____________________</p>
         <p className="mt-4">Date: ______________</p>
       </div>
       {trip.consentDeadline && (
-        <p className="mt-2 text-[11px]">Please return this slip to the Discipline Office by {formatDate(fromDbDate(trip.consentDeadline))}.</p>
+        <p className="mt-2 text-[11px]">Please send this slip back to the Discipline Office by {formatDate(fromDbDate(trip.consentDeadline))}.</p>
       )}
     </Paper>
   );

@@ -68,13 +68,13 @@ async function Letter({
     <table className="mt-4 w-full border-collapse text-[13px]">
       <tbody>
         {[
-          ["Violation", `${v.type.name} (${SEVERITY_LABELS[v.severity]})`],
+          ["What he/she did", `${v.type.name} (${SEVERITY_LABELS[v.severity]})`],
           ["Date & time", when],
           ...(v.location ? [["Place", v.location]] : []),
-          ["Details", v.description],
-          ...(others > 0 ? [["Others involved", `${others} other student${others === 1 ? "" : "s"} in the same incident`]] : []),
+          ["What happened", v.description],
+          ...(others > 0 ? [["Others involved", `${others} other student${others === 1 ? "" : "s"} in the same matter`]] : []),
           ["Action taken", action],
-          ...(fine > 0 ? [["Fine", `Rs. ${fine.toLocaleString()} ${v.finePaid ? "(paid)" : "(to be paid at the Discipline Office)"}`]] : []),
+          ...(fine > 0 ? [["Fine", `Rs. ${fine.toLocaleString()} ${v.finePaid ? "(paid)" : "(please pay at the Discipline Office)"}`]] : []),
         ].map(([key, val]) => (
           <tr key={key}>
             <th className="w-36 border border-black bg-neutral-100 px-3 py-1.5 text-left align-top font-semibold">{key}</th>
@@ -144,26 +144,26 @@ async function Letter({
                 </p>
               </div>
               <p className="mt-6 font-semibold">
-                Subject: <span className="underline">Warning for violation of college discipline</span>
+                Subject: <span className="underline">Warning letter</span>
               </p>
               <p className="mt-5 text-justify">
-                It has been reported and verified that you, {ward}, were involved in the following violation of the college code of conduct:
+                It has been found that you, {ward}, broke the college rules as given below:
               </p>
               {facts}
               {previous > 0 && (
                 <p className="mt-4 text-justify">
-                  This is not your first case: {previous} earlier {previous === 1 ? "violation is" : "violations are"} already on your record.
+                  This is not the first time. You already have {previous} {previous === 1 ? "complaint" : "complaints"} on college record.
                 </p>
               )}
               <p className="mt-4 text-justify">
-                You are hereby <span className="font-semibold">strictly warned</span> to refrain from such conduct in future. Any repetition
-                will lead to stricter disciplinary action, which may include fines, suspension or the matter being referred to the
-                Discipline Committee, as per college rules. A copy of this letter is being placed on your record and sent to your parent/guardian.
+                This is a <span className="font-semibold">{previous > 0 ? "final warning" : "warning"}</span>. Do not do this again. If it happens again, the college will
+                take strict action, such as a fine, suspension, or sending your case to the Discipline Committee. A copy of this letter is
+                kept in your file and sent to your parents.
               </p>
               {sign("Discipline In-Charge", "Principal")}
               <div className="mt-12 border-t border-dashed border-black pt-4 text-[13px]">
-                <p className="font-semibold">Receipt by student</p>
-                <p className="mt-2">I have received this warning letter (case no. {v.id}) and understood its contents.</p>
+                <p className="font-semibold">Student receipt</p>
+                <p className="mt-2">I have received this warning letter (case no. {v.id}) and I understand it.</p>
                 <div className="mt-8 flex justify-between">
                   <p>Student signature: ______________________</p>
                   <p>Date: ______________</p>
@@ -182,21 +182,20 @@ async function Letter({
                 </p>
               </div>
               <p className="mt-6 font-semibold">
-                Subject: <span className="underline">Show-cause notice</span>
+                Subject: <span className="underline">Explain your conduct (show-cause notice)</span>
               </p>
               <p className="mt-5 text-justify">
-                Whereas it has been reported that you, {ward}, committed the following act of indiscipline:
+                It has been reported that you, {ward}, did the following:
               </p>
               {facts}
               <p className="mt-4 text-justify">
-                You are hereby directed to <span className="font-semibold">show cause in writing</span> why disciplinary action should not be
-                taken against you. Your written reply must reach the Discipline Office by <span className="font-semibold">{replyBy}</span>. If
-                no satisfactory reply is received by that date, it will be presumed that you have nothing to say in your defence and action
-                will be taken as per college rules.
+                Please <span className="font-semibold">explain in writing</span> why action should not be taken against you. Bring your
+                written reply to the Discipline Office by <span className="font-semibold">{replyBy}</span>. If you do not reply by then, the
+                college will take action according to its rules.
               </p>
               {sign("Discipline In-Charge", "Principal")}
               <div className="mt-10 border-t border-dashed border-black pt-4 text-[13px]">
-                <p className="font-semibold">Student&apos;s reply</p>
+                <p className="font-semibold">Your reply</p>
                 {Array.from({ length: 6 }, (_, i) => (
                   <div key={i} className="mt-6 border-b border-black" />
                 ))}
@@ -212,14 +211,13 @@ async function Letter({
             <>
               <p className="mt-8 text-center text-lg font-bold tracking-wide uppercase underline">Undertaking</p>
               <p className="mt-6 text-justify">
-                I, {ward}, admit that I was involved in the following violation of college discipline:
+                I, {ward}, accept that I broke the college rules as given below:
               </p>
               {facts}
               <p className="mt-4 text-justify">
-                I sincerely regret my conduct and apologise for it. I hereby undertake that I will not repeat this or any other act of
-                indiscipline in future, and that I will abide by all the rules and regulations of {settings.collegeName}. I understand that
-                if I violate this undertaking, the college may take strict action against me, including suspension or expulsion, and I will
-                have no right to object.
+                I am sorry for what I did. I promise that I will not do this, or anything else against the rules, again. I will follow all the
+                rules of {settings.collegeName}. If I break this promise, the college can take strict action against me, including
+                suspension or removal from college, and I will not object.
               </p>
               <div className="mt-14 grid grid-cols-2 gap-x-10 gap-y-12 text-[13px]">
                 <div>
@@ -253,28 +251,28 @@ async function Letter({
                 <p>Contact: {s.parentPhone}</p>
               </div>
               <p className="mt-6 font-semibold">
-                Subject: <span className="underline">Suspension of your ward from college</span>
+                Subject: <span className="underline">Suspension of your son/daughter</span>
               </p>
               <p className="mt-5 text-justify">
-                This is to inform you that your ward, {ward}, has been found guilty of the following serious violation of college discipline:
+                We are sorry to inform you that your son/daughter, {ward}, has seriously broken the college rules as given below:
               </p>
               {facts}
               <p className="mt-4 text-justify">
-                In view of the above, the competent authority has decided to{" "}
+                For this reason, the college has{" "}
                 <span className="font-semibold">
-                  suspend your ward from college for {v.suspensionDays ?? "____"} day(s), with effect from {formatDate(today)}
+                  suspended your child for {v.suspensionDays ?? "____"} day(s), starting from {formatDate(today)}
                 </span>
-                . Your ward may rejoin classes on <span className="font-semibold">{returnOn}</span>, only after you have personally met the
-                Discipline In-Charge and submitted a written undertaking.
+                . Your child can come back to classes on <span className="font-semibold">{returnOn}</span>, but only after you come to the
+                college yourself, meet the Discipline In-Charge and sign an undertaking.
               </p>
               <p className="mt-3 text-justify">
-                During the suspension period your ward is not allowed to enter the college premises. Absence from classes and tests during
-                this period will be the responsibility of the student.
+                During these days your child must not come to the college. Any classes or tests missed during this time will be the
+                student&apos;s own responsibility.
               </p>
               {sign("Discipline In-Charge", "Principal")}
               <div className="mt-12 border-t border-dashed border-black pt-4 text-[13px]">
-                <p className="font-semibold">Parent acknowledgement</p>
-                <p className="mt-2">I have received the suspension order of my ward {s.fullName} (case no. {v.id}).</p>
+                <p className="font-semibold">Parent receipt</p>
+                <p className="mt-2">I have received the suspension letter of my son/daughter {s.fullName} (case no. {v.id}).</p>
                 <div className="mt-8 flex justify-between">
                   <p>Signature: ______________________</p>
                   <p>Date: ______________</p>

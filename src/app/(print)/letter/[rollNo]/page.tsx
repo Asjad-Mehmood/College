@@ -102,20 +102,20 @@ async function Letter({
           <p className="mt-6">
             <span className="font-semibold">Subject: </span>
             <span className="font-semibold underline">
-              {severe ? "Final warning and summons" : "Warning"} regarding repeated late arrival of your ward
+              {severe ? "Final warning — please come to the college" : "Warning"} about coming late to college
             </span>
           </p>
 
           <p className="mt-5">Respected Sir / Madam,</p>
           <p className="mt-3 text-justify">
-            This is to inform you that your ward <span className="font-semibold">{student.fullName}</span>, Roll No.{" "}
-            <span className="font-semibold">{student.rollNo}</span>, student of{" "}
+            We want to inform you that your son/daughter <span className="font-semibold">{student.fullName}</span>, Roll No.{" "}
+            <span className="font-semibold">{student.rollNo}</span>, class{" "}
             <span className="font-semibold">
               {student.program} ({student.section})
             </span>
-            , arrived late to college on <span className="font-semibold">{records.length}</span>{" "}
-            {records.length === 1 ? "occasion" : "occasions"} during {formatMonth(`${month}-01`)}, as detailed below.
-            The {SHIFT_LABELS[shift].toLowerCase()} shift starts at {formatMinutes(shiftStart(settings, shift).startMinutes)}.
+            , came late to college <span className="font-semibold">{records.length}</span>{" "}
+            {records.length === 1 ? "time" : "times"} in {formatMonth(`${month}-01`)}. The details are below. The{" "}
+            {SHIFT_LABELS[shift].toLowerCase()} shift starts at {formatMinutes(shiftStart(settings, shift).startMinutes)}.
           </p>
 
           <table className="mt-4 w-full border-collapse text-[13px]">
@@ -150,24 +150,24 @@ async function Letter({
           </table>
 
           <p className="mt-5 text-justify">
-            Punctuality is a basic requirement of college discipline, and repeated late arrival disturbs your
-            ward&apos;s studies as well as the class.{" "}
+            Coming on time is a basic college rule. Coming late again and again harms your child&apos;s studies and disturbs the
+            class.{" "}
             {severe ? (
               <>
-                As the number of late arrivals has crossed the permissible limit, you are requested to{" "}
+                Your child has now come late too many times. Please{" "}
                 <span className="font-semibold">
-                  meet the Discipline Committee in person on ____________ at ________
-                </span>
-                . Failure to do so may result in a fine, detention or further disciplinary action as per college rules.
+                  come to the college yourself on ____________ at ________
+                </span>{" "}
+                to meet the Discipline Committee. If you do not come, the college may impose a fine or take stricter action.
               </>
             ) : (
               <>
-                You are requested to ensure that your ward reaches college on time. Further late arrivals will lead to
-                a fine or a summons to the Discipline Committee as per college rules.
+                Please make sure your child reaches college on time. If he/she comes late again, there will be a fine and you will
+                be called to the college.
               </>
             )}
           </p>
-          <p className="mt-3">Your cooperation in this matter is highly appreciated.</p>
+          <p className="mt-3">Thank you for your cooperation.</p>
 
           <div className="mt-16 flex justify-between gap-8 text-[13px]">
             <div className="text-center">
@@ -181,10 +181,10 @@ async function Letter({
           </div>
 
           <div className="mt-12 border-t border-dashed border-black pt-4 text-[13px]">
-            <p className="font-semibold">Parent acknowledgement (to be returned to the Discipline Office)</p>
+            <p className="font-semibold">Parent receipt (cut and send back to the Discipline Office)</p>
             <p className="mt-2">
-              I have received the letter regarding the late arrival of my ward {student.fullName} (Roll No.{" "}
-              {student.rollNo}).
+              I have received this letter about my son/daughter {student.fullName} (Roll No. {student.rollNo}) coming late. I will
+              make sure he/she comes on time.
             </p>
             <div className="mt-8 flex justify-between">
               <p>Signature: ______________________</p>

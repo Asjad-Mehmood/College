@@ -99,13 +99,13 @@ export function tripParentMessage(
 ) {
   const sign = `– Discipline In-Charge, ${args.collegeName}`;
   if (kind === "consent") {
-    return `Respected Parent, please submit your signed permission for ${args.studentName} to join the ${args.tripTitle} (${args.destination}, ${args.when})${args.deadline ? ` by ${args.deadline}` : ""}. ${sign}`;
+    return `Respected Parent, please sign the permission slip for ${args.studentName} to go on the ${args.tripTitle} (${args.destination}, ${args.when}) and send it back to the college${args.deadline ? ` by ${args.deadline}` : ""}. ${sign}`;
   }
   if (kind === "fee") {
-    return `Respected Parent, the trip fee of Rs. ${args.balance} for ${args.studentName} (${args.tripTitle}) is still due${args.deadline ? `; please pay by ${args.deadline}` : ""}. ${sign}`;
+    return `Respected Parent, the trip fee of Rs. ${args.balance} for ${args.studentName} (${args.tripTitle}) has not been paid yet. Please pay it${args.deadline ? ` by ${args.deadline}` : " soon"}. ${sign}`;
   }
   return (
-    `Respected Parent, ${args.studentName} is registered for the ${args.tripTitle} to ${args.destination}, ${args.when}. ` +
+    `Respected Parent, ${args.studentName} is going on the ${args.tripTitle} to ${args.destination}, ${args.when}. ` +
     `${args.meetingPoint ? `Meeting point: ${args.meetingPoint}. ` : ""}${args.fee > 0 ? `Fee: Rs. ${args.fee}. ` : ""}${sign}`
   );
 }
