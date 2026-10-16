@@ -2,15 +2,30 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, CalendarDays, FileSpreadsheet, MapPin, Printer } from "lucide-react";
-import { Meter } from "@/components/meter";
+import {
+  ArrowLeft,
+  BedDouble,
+  Bus,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ClipboardCheck,
+  Clock,
+  FileSpreadsheet,
+  LayoutDashboard,
+  MapPin,
+  Printer,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { Card, CardHeader, Pill, Skeleton, buttonClass, cx } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
 import { TRIP_STATUS_LABELS, TRIP_TYPE_LABELS } from "@/lib/labels";
 import { whatsAppLink } from "@/lib/messages";
 import { getClassOptions } from "@/lib/records";
 import { getSettings } from "@/lib/settings";
-import { formatDate, formatMinutes, formatTime, fromDbDate, parseHHMM } from "@/lib/time";
+import { formatDate, formatMinutes, formatTime, fromDbDate, localParts, parseHHMM } from "@/lib/time";
 import { getTrip, tripParentMessage, tripSummary, tripWhen } from "@/lib/trips";
 import { RollCall, type RollCallRow } from "./roll-call";
 import { AddStudents, MessagePanel, ParticipantTable, type ParticipantView } from "./students";
@@ -19,6 +34,8 @@ import { RoomsPanel } from "./rooms";
 import { TransportPanel } from "./transport";
 
 export const metadata: Metadata = { title: "Trip" };
+
+const TAB_ICONS = { overview: LayoutDashboard, students: Users, transport: Bus, rooms: BedDouble, rollcall: ClipboardCheck } as const;
 
 const TABS = [
   { key: "overview", label: "Overview" },
@@ -67,61 +84,204 @@ async function Trip({
   const canDelete = admin && (trip.status === "CANCELLED" || (before && trip.participants.every((p) => Number(p.feePaid) === 0)));
   const tone = trip.status === "DEPARTED" ? "warning" : trip.status === "OPEN" ? "accent" : trip.status === "CANCELLED" ? "critical" : "neutral";
 
+  const today = localParts(new Date(), settings.timezone).date;
+  const depart = fromDbDate(trip.departDate);
+  const daysTo = Math.round((Date.parse(depart) - Date.parse(today)) / 86_400_000);
+  const countdown =
+    trip.status === "DEPARTED"
+      ? "On the trip now"
+      : trip.status === "RETURNED"
+        ? "Trip completed"
+        : trip.status === "CANCELLED"
+          ? "Cancelled"
+          : daysTo < 0
+            ? `Departure was ${-daysTo} day${daysTo === -1 ? "" : "s"} ago`
+            : daysTo === 0
+              ? "Leaves today"
+              : daysTo === 1
+                ? "Leaves tomorrow"
+                : `Leaves in ${daysTo} days`;
+  const registered = trip.participants.filter((p) => p.status === "REGISTERED");
+  const busSeats = trip.vehicles.reduce((a, v) => a + (v.seats ?? 0), 0);
+  const onBus = registered.filter((p) => p.vehicleId != null).length;
+  const beds = trip.rooms.reduce((a, r) => a + r.beds, 0);
+  const inRoom = registered.filter((p) => p.roomId != null).length;
+  const tabHref = (t: Tab) => (t === "overview" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t}`);
+  const kpis: { label: string; value: string; sub?: string; tab: Tab; warn?: boolean }[] = [
+    {
+      label: "Students",
+      value: trip.seats != null ? `${summary.registered}/${trip.seats}` : String(summary.registered),
+      sub: trip.seats != null ? `${summary.seatsLeft} seats left` : "no seat limit",
+      tab: "students",
+    },
+    {
+      label: "Consent",
+      value: `${summary.consentReceived}/${summary.registered}`,
+      sub: summary.consentPending ? `${summary.consentPending} pending` : summary.registered ? "all received" : "—",
+      tab: "students",
+      warn: summary.consentPending > 0 && before,
+    },
+    ...(fee > 0
+      ? [
+          {
+            label: "Fee collected",
+            value: `Rs. ${summary.collected.toLocaleString()}`,
+            sub: `of Rs. ${(fee * summary.registered).toLocaleString()} · ${summary.feePending} unpaid`,
+            tab: "students" as Tab,
+            warn: summary.feePending > 0 && before,
+          },
+        ]
+      : []),
+    {
+      label: "Transport",
+      value: `${onBus}/${summary.registered}`,
+      sub: trip.vehicles.length ? `on ${trip.vehicles.length} vehicle${trip.vehicles.length === 1 ? "" : "s"} · ${busSeats} seats` : "no vehicles yet",
+      tab: "transport",
+      warn: before && summary.registered > 0 && onBus < summary.registered,
+    },
+    ...(trip.overnight
+      ? [
+          {
+            label: "Rooms",
+            value: `${inRoom}/${summary.registered}`,
+            sub: `${trip.rooms.length} rooms · ${beds} beds`,
+            tab: "rooms" as Tab,
+            warn: before && summary.registered > 0 && inRoom < summary.registered,
+          },
+        ]
+      : []),
+  ];
+
+  // Next steps, in the order they're usually done.
+  const steps = [
+    { label: "Add students", done: summary.registered > 0, tab: "students" as Tab, detail: `${summary.registered} registered` },
+    { label: "Collect parent consent", done: summary.registered > 0 && summary.consentPending === 0, tab: "students" as Tab, detail: `${summary.consentReceived} received · ${summary.consentPending} pending` },
+    ...(fee > 0
+      ? [{ label: "Collect fees", done: summary.registered > 0 && summary.feePending === 0, tab: "students" as Tab, detail: `${summary.feePaid} paid · ${summary.feePending} unpaid` }]
+      : []),
+    { label: "Add staff", done: trip.staff.length > 0, tab: "overview" as Tab, detail: `${trip.staff.length} accompanying` },
+    { label: "Add vehicles and assign seats", done: trip.vehicles.length > 0 && onBus === summary.registered && summary.registered > 0, tab: "transport" as Tab, detail: `${onBus} of ${summary.registered} seated` },
+    ...(trip.overnight
+      ? [{ label: "Allocate rooms", done: summary.registered > 0 && inRoom === summary.registered, tab: "rooms" as Tab, detail: `${inRoom} of ${summary.registered} in rooms` }]
+      : []),
+    { label: "Roll call at departure", done: trip.status === "DEPARTED" || trip.status === "RETURNED", tab: "rollcall" as Tab, detail: trip.departedAt ? `Left ${formatTime(trip.departedAt, settings.timezone)}` : "On the day" },
+    { label: "Roll call on return", done: trip.status === "RETURNED", tab: "rollcall" as Tab, detail: trip.returnedAt ? `Back ${formatTime(trip.returnedAt, settings.timezone)}` : "When back" },
+  ];
+  const doneCount = steps.filter((x) => x.done).length;
+  const itinerary = (trip.itinerary ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const m = l.match(/^(\d{1,2}[:.]\d{2}\s*(?:[ap]m)?)\s*[-–:]?\s*(.*)$/i);
+      return m ? { time: m[1], text: m[2] } : { time: "", text: l };
+    });
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Pill tone={tone}>{TRIP_STATUS_LABELS[trip.status]}</Pill>
-            <span className="text-[13px] text-muted">{TRIP_TYPE_LABELS[trip.type]}</span>
+      <Card className="overflow-hidden">
+        <div className="flex flex-col gap-4 p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Pill tone={tone}>{TRIP_STATUS_LABELS[trip.status]}</Pill>
+              <span className="text-[13px] text-muted">{TRIP_TYPE_LABELS[trip.type]}</span>
+              {trip.overnight && (
+                <span className="inline-flex items-center gap-1 text-[13px] text-muted">
+                  <BedDouble className="size-3.5" aria-hidden /> Night stay
+                </span>
+              )}
+            </div>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-[28px]">{trip.title}</h1>
+            <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-2">
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="size-4 text-muted" aria-hidden /> {trip.destination}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarDays className="size-4 text-muted" aria-hidden /> {when}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <UserRound className="size-4 text-muted" aria-hidden /> {trip.inChargeName}
+              </span>
+            </p>
           </div>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">{trip.title}</h1>
-          <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-2">
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin className="size-4 text-muted" aria-hidden /> {trip.destination}
+          <div className="no-print flex shrink-0 flex-col items-start gap-3 lg:items-end">
+            <span
+              className={cx(
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-medium",
+                before && daysTo <= 3 ? "bg-warning/20 text-ink" : trip.status === "DEPARTED" ? "bg-warning/20 text-ink" : "bg-surface-2 text-ink-2",
+              )}
+            >
+              <Clock className="size-3.5" aria-hidden /> {countdown}
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <CalendarDays className="size-4 text-muted" aria-hidden /> {when}
-            </span>
-          </p>
+            {admin && (
+              <div className="flex flex-wrap gap-2 lg:justify-end">
+                <TripControls id={trip.id} status={trip.status} canDelete={canDelete} />
+              </div>
+            )}
+          </div>
         </div>
-        <div className="no-print flex flex-wrap items-start gap-2 lg:justify-end">
-          {admin && <TripControls id={trip.id} status={trip.status} canDelete={canDelete} />}
+        <div className={cx("no-print grid grid-cols-2 border-t border-line", kpis.length >= 5 ? "lg:grid-cols-5" : kpis.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
+          {kpis.map((k, i) => (
+            <Link
+              key={k.label}
+              href={tabHref(k.tab)}
+              className={cx(
+                "border-line px-5 py-3.5 hover:bg-surface-2/60",
+                i > 0 && "lg:border-l",
+                i % 2 === 1 && "border-l",
+                i >= 2 && "border-t lg:border-t-0",
+                k.warn && "bg-warning/8",
+              )}
+            >
+              <p className="text-[12px] text-muted">{k.label}</p>
+              <p className="mt-0.5 text-lg font-semibold tabular">{k.value}</p>
+              {k.sub && <p className="truncate text-[12px] text-muted">{k.sub}</p>}
+            </Link>
+          ))}
         </div>
-      </div>
+      </Card>
 
       <div className="no-print flex flex-wrap items-center justify-between gap-3">
         <nav className="inline-flex max-w-full overflow-x-auto rounded-xl border border-line bg-surface p-1 shadow-card" aria-label="Trip sections">
-          {tabs.map((t) => (
-            <Link
-              key={t.key}
-              href={t.key === "overview" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t.key}`}
-              aria-current={tab === t.key ? "page" : undefined}
-              className={cx(
-                "rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors sm:px-3.5",
-                tab === t.key ? "bg-accent-soft text-accent-ink" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
-              )}
-            >
-              {t.label}
-              {t.key === "students" && <span className="ml-1.5 text-[12px] tabular opacity-70">{summary.registered}</span>}
-            </Link>
-          ))}
+          {tabs.map((t) => {
+            const Icon = TAB_ICONS[t.key];
+            const count = t.key === "students" ? summary.registered : t.key === "transport" ? trip.vehicles.length : t.key === "rooms" ? trip.rooms.length : null;
+            return (
+              <Link
+                key={t.key}
+                href={tabHref(t.key)}
+                aria-current={tab === t.key ? "page" : undefined}
+                className={cx(
+                  "inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors sm:px-3.5",
+                  tab === t.key ? "bg-accent-soft text-accent-ink" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+                )}
+              >
+                <Icon className="size-4" aria-hidden />
+                {t.label}
+                {count != null && <span className="text-[12px] tabular opacity-70">{count}</span>}
+              </Link>
+            );
+          })}
         </nav>
         <div className="flex flex-wrap gap-2">
-          <a href={`/trip-docs/${trip.id}?doc=slips`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
-            <Printer className="size-3.5" aria-hidden /> Permission slips
-          </a>
-          <a href={`/trip-docs/${trip.id}?doc=list`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
-            <Printer className="size-3.5" aria-hidden /> Student list
-          </a>
-          <a href={`/trip-docs/${trip.id}?doc=bus`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
-            <Printer className="size-3.5" aria-hidden /> Bus lists
-          </a>
-          {trip.overnight && (
-            <a href={`/trip-docs/${trip.id}?doc=rooms`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
-              <Printer className="size-3.5" aria-hidden /> Room list
-            </a>
-          )}
+          <details className="group relative">
+            <summary className={buttonClass("secondary", "sm", "cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
+              <Printer className="size-3.5" aria-hidden /> Print
+              <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 flex w-56 flex-col rounded-xl border border-line bg-surface p-1 shadow-pop">
+              {[
+                ["slips", "Parent permission slips"],
+                ["list", "Student list"],
+                ["bus", "Bus lists"],
+                ...(trip.overnight ? [["rooms", "Room list"]] : []),
+              ].map(([doc, label]) => (
+                <a key={doc} href={`/trip-docs/${trip.id}?doc=${doc}`} target="_blank" rel="noreferrer" className="rounded-lg px-3 py-2 text-sm hover:bg-surface-2">
+                  {label}
+                </a>
+              ))}
+            </div>
+          </details>
           <a href={`/api/export/trips/${trip.id}`} className={buttonClass("secondary", "sm")}>
             <FileSpreadsheet className="size-3.5" aria-hidden /> Excel
           </a>
@@ -131,6 +291,40 @@ async function Trip({
       {tab === "overview" && (
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex flex-col gap-5">
+            {trip.status !== "CANCELLED" && (
+              <Card>
+                <CardHeader
+                  title="Next steps"
+                  description={`${doneCount} of ${steps.length} done`}
+                  actions={
+                    <div className="h-1.5 w-28 overflow-hidden rounded-full bg-accent/15" aria-hidden>
+                      <div className="h-full rounded-full bg-accent" style={{ width: `${(doneCount / steps.length) * 100}%` }} />
+                    </div>
+                  }
+                />
+                <ol className="divide-y divide-line">
+                  {steps.map((x, i) => (
+                    <li key={x.label}>
+                      <Link href={tabHref(x.tab)} className="flex items-center gap-3 px-5 py-3 hover:bg-surface-2/60">
+                        {x.done ? (
+                          <CheckCircle2 className="size-5 shrink-0 text-good" aria-hidden />
+                        ) : (
+                          <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-line-strong text-[11px] font-semibold text-muted">
+                            {i + 1}
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className={cx("block text-sm font-medium", x.done && "text-ink-2")}>{x.label}</span>
+                          <span className="block text-[12px] text-muted">{x.detail}</span>
+                        </span>
+                        <ChevronRight className="size-4 text-muted" aria-hidden />
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </Card>
+            )}
+
             <Card>
               <CardHeader title="Details" />
               <dl className="grid gap-x-6 gap-y-4 p-5 text-sm sm:grid-cols-2">
@@ -140,24 +334,14 @@ async function Trip({
                 <Info label="Teacher in charge">{`${trip.inChargeName}${trip.inChargePhone ? ` · ${trip.inChargePhone}` : ""}`}</Info>
                 <Info label="Open to">{trip.programs.length ? trip.programs.join(", ") : "All programs"}</Info>
                 <Info label="Seats">{trip.seats ?? "No limit"}</Info>
-                <Info label="Night stay">{trip.overnight ? `Yes · ${trip.rooms.length} rooms, ${trip.rooms.reduce((s, r) => s + r.beds, 0)} beds` : "No"}</Info>
+                <Info label="Night stay">{trip.overnight ? `Yes · ${trip.rooms.length} rooms, ${beds} beds` : "No"}</Info>
                 <Info label="Fee">{fee > 0 ? `Rs. ${fee.toLocaleString()}${trip.feeDeadline ? ` · pay by ${formatDate(fromDbDate(trip.feeDeadline))}` : ""}` : "Free"}</Info>
                 <Info label="Consent deadline">{trip.consentDeadline ? formatDate(fromDbDate(trip.consentDeadline)) : "—"}</Info>
               </dl>
-              {(trip.purpose || trip.itinerary) && (
-                <div className="grid gap-4 border-t border-line p-5 sm:grid-cols-2">
-                  {trip.purpose && (
-                    <div>
-                      <p className="text-[12px] font-medium tracking-wide text-muted uppercase">Purpose</p>
-                      <p className="mt-1 text-sm whitespace-pre-line">{trip.purpose}</p>
-                    </div>
-                  )}
-                  {trip.itinerary && (
-                    <div>
-                      <p className="text-[12px] font-medium tracking-wide text-muted uppercase">Itinerary</p>
-                      <p className="mt-1 text-sm whitespace-pre-line">{trip.itinerary}</p>
-                    </div>
-                  )}
+              {trip.purpose && (
+                <div className="border-t border-line p-5">
+                  <p className="text-[12px] font-medium tracking-wide text-muted uppercase">Purpose</p>
+                  <p className="mt-1 text-sm whitespace-pre-line">{trip.purpose}</p>
                 </div>
               )}
               {(trip.cancelReason || trip.departureNote || trip.returnNote || trip.departedAt) && (
@@ -180,34 +364,29 @@ async function Trip({
             </Card>
           </div>
           <div className="flex flex-col gap-5">
+            {itinerary.length > 0 && (
+              <Card>
+                <CardHeader title="Itinerary" />
+                <ol className="relative mx-5 my-4 border-l border-line">
+                  {itinerary.map((x, i) => (
+                    <li key={i} className="relative pb-3 pl-5 last:pb-0">
+                      <span className="absolute top-1.5 -left-[5px] size-2.5 rounded-full bg-accent ring-4 ring-surface" aria-hidden />
+                      {x.time && <p className="text-[12px] font-semibold text-accent-ink tabular">{x.time}</p>}
+                      <p className="text-sm">{x.text}</p>
+                    </li>
+                  ))}
+                </ol>
+              </Card>
+            )}
             <Card>
-              <CardHeader title="Progress" />
-              <div className="flex flex-col gap-3 p-5">
-                {trip.seats != null ? (
-                  <Meter label="Seats filled" value={summary.registered} total={trip.seats} />
-                ) : (
-                  <p className="text-sm">
-                    <span className="font-semibold tabular">{summary.registered}</span> students registered
-                  </p>
-                )}
-                <Meter label="Consent received" value={summary.consentReceived} total={summary.registered} />
-                {fee > 0 && <Meter label="Fee paid" value={summary.feePaid} total={summary.registered} />}
-                {fee > 0 && (
-                  <p className="text-[13px] text-ink-2">
-                    Collected <span className="font-semibold text-ink">Rs. {summary.collected.toLocaleString()}</span> of Rs.{" "}
-                    {(fee * summary.registered).toLocaleString()}
-                  </p>
-                )}
-                {summary.consentRefused > 0 && <p className="text-[13px] text-danger-ink">{summary.consentRefused} parents refused consent.</p>}
-                <Link href={`/trips/${trip.id}?tab=students`} className="text-[13px] font-medium text-accent-ink hover:underline">
-                  Manage students →
-                </Link>
-              </div>
-            </Card>
-            <Card>
-              <CardHeader title="Accompanying staff" />
+              <CardHeader title="Accompanying staff" description={`${trip.staff.length + 1} adults with ${summary.registered} students`} />
               <StaffPanel tripId={trip.id} staff={trip.staff} editable={admin && trip.status !== "RETURNED" && trip.status !== "CANCELLED"} />
             </Card>
+            {summary.consentRefused > 0 && (
+              <p className="rounded-xl bg-critical/8 px-4 py-3 text-[13px] text-danger-ink ring-1 ring-critical/20 ring-inset">
+                {summary.consentRefused} {summary.consentRefused === 1 ? "parent has" : "parents have"} refused consent.
+              </p>
+            )}
           </div>
         </div>
       )}
