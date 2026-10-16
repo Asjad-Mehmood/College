@@ -217,7 +217,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
             <thead>
               <tr>
                 <Th>Date &amp; arrival</Th>
-                <Th>Strike</Th>
+                <Th>This month</Th>
                 <Th>Reason / action</Th>
                 <Th>Fine</Th>
                 <Th>Remarks</Th>
@@ -244,7 +244,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
                         </span>
                       </Td>
                       <Td>
-                        <StrikeBadge level={strikeLevel(r.strike, settings)} label={ordinal(r.strike)} />
+                        <StrikeBadge level={strikeLevel(r.strike, settings)} label={`${ordinal(r.strike)} time`} />
                       </Td>
                       <Td>
                         <span className="block">{REASON_LABELS[r.reason]}</span>

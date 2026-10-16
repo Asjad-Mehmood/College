@@ -125,7 +125,7 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
       </div>
 
       <div className="border-t border-line pt-5">
-        <p className="text-sm font-semibold">Three-strike escalation</p>
+        <p className="text-sm font-semibold">Warning levels</p>
         <p className="mt-0.5 text-[13px] text-muted">
           Monthly late counts that trigger each level. Below the habitual threshold the student gets a verbal warning.
         </p>

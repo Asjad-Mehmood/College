@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       Date: r.lateDate,
       "Arrival Time": formatTime(r.arrivedAt, settings.timezone),
       "Minutes Late": r.minutesLate,
-      "Strike (month)": r.strikeNo,
+      "Times late (month)": r.strikeNo,
       "Lates This Month": r.monthCount,
       Reason: REASON_LABELS[r.reason],
       "Action Taken": ACTION_LABELS[r.actionTaken],

@@ -10,7 +10,7 @@ import {
   Printer,
   SearchX,
 } from "lucide-react";
-import { FilterForm, PrintButton } from "@/components/filter-form";
+import { FilterForm } from "@/components/filter-form";
 import { LedgerTable } from "@/components/ledger-table";
 import { MonthCalendar } from "@/components/month-calendar";
 import {
@@ -186,9 +186,9 @@ async function MonthView({ params }: { params: Params }) {
                   <a className={buttonClass("secondary", "sm")} href={`/api/export?format=csv&${dayQs}`}>
                     <FileText className="size-3.5" aria-hidden /> CSV
                   </a>
-                  <PrintButton>
-                    <Printer className="size-4" aria-hidden /> Print
-                  </PrintButton>
+                  <a className={buttonClass("secondary", "sm")} href={`/late-print?${dayQs}`} target="_blank" rel="noreferrer">
+                    <Printer className="size-3.5" aria-hidden /> Print
+                  </a>
                 </div>
               )}
             </div>
@@ -310,9 +310,9 @@ async function ExportActions({ searchParams }: { searchParams: SP }) {
       <a className={buttonClass("secondary")} href={`/api/export?format=csv${sep}${qs}`}>
         <FileText className="size-4" aria-hidden /> CSV
       </a>
-      <PrintButton>
+      <a className={buttonClass("secondary")} href={`/late-print?${qs}`} target="_blank" rel="noreferrer">
         <Printer className="size-4" aria-hidden /> Print / PDF
-      </PrintButton>
+      </a>
     </>
   );
 }
@@ -464,13 +464,13 @@ function Filters({
             <option value="MORNING">Morning shift</option>
             <option value="EVENING">Evening shift</option>
           </Select>
-          <Select name="strike" defaultValue={filters.strike} aria-label="Strike level">
-            <option value="">Any strike</option>
-            <option value="low">Strikes 1–{settings.habitualThreshold - 1}</option>
+          <Select name="strike" defaultValue={filters.strike} aria-label="Times late this month">
+            <option value="">Any number of times</option>
+            <option value="low">Late 1–{settings.habitualThreshold - 1} times</option>
             <option value="habitual">
-              Strikes {settings.habitualThreshold}–{settings.criticalThreshold - 1}
+              Late {settings.habitualThreshold}–{settings.criticalThreshold - 1} times
             </option>
-            <option value="critical">Strikes {settings.criticalThreshold}+</option>
+            <option value="critical">Late {settings.criticalThreshold}+ times</option>
           </Select>
         </div>
         {filters.range === "custom" && (

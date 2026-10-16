@@ -27,7 +27,7 @@ export function LedgerTable({
           <Th>Student</Th>
           <Th>Class</Th>
           <Th>{showDate ? "Date & arrival" : "Arrival"}</Th>
-          <Th>Strike</Th>
+          <Th>This month</Th>
           <Th>Reason / action</Th>
           <Th>Fine</Th>
           <Th className="no-print text-right">
@@ -69,7 +69,7 @@ export function LedgerTable({
               )}
             </Td>
             <Td>
-              <StrikeBadge level={strikeLevel(r.strikeNo, settings)} label={`${ordinal(r.strikeNo)} of ${r.monthCount}`} />
+              <StrikeBadge level={strikeLevel(r.strikeNo, settings)} label={`${ordinal(r.strikeNo)} time`} />
             </Td>
             <Td>
               <span className="block">{REASON_LABELS[r.reason]}</span>
