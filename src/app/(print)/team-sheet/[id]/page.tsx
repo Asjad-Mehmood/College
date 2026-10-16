@@ -41,7 +41,7 @@ async function Sheet({ params }: { params: PageProps<"/team-sheet/[id]">["params
   const members = [...team.members].sort((a, b) => order(a.role) - order(b.role) || (a.jerseyNo ?? 999) - (b.jerseyNo ?? 999) || a.rollNo.localeCompare(b.rollNo));
   return (
     <div className="px-4 py-8 print:p-0">
-      <style>{`@page { size: A4; margin: 14mm; }`}</style>
+      <style>{`@page { size: A4; margin: 16mm 18mm; }`}</style>
       <article className="mx-auto max-w-[210mm] bg-white p-[14mm] text-[13px] leading-relaxed text-black shadow-pop print:max-w-none print:p-0 print:shadow-none">
         <header className="border-b-2 border-black pb-2 text-center">
           <p className="text-lg font-bold tracking-tight uppercase">{settings.collegeName}</p>

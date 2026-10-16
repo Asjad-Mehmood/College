@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { CalendarX, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Plus, Printer, ShieldCheck } from "lucide-react";
-import { FilterForm, PrintButton } from "@/components/filter-form";
+import { FilterForm } from "@/components/filter-form";
 import { MonthCalendar } from "@/components/month-calendar";
 import { ButtonLink, Card, EmptyState, Input, PageHeader, Select, Skeleton, StrikeBadge, buttonClass, cx } from "@/components/ui";
 import { ViewTabs, pickView } from "@/components/view-tabs";
@@ -182,9 +182,9 @@ async function MonthView({ params }: { params: Params }) {
                   <a className={buttonClass("secondary", "sm")} href={`/api/export/violations?format=csv&${dayQs}`}>
                     <FileText className="size-3.5" aria-hidden /> CSV
                   </a>
-                  <PrintButton>
-                    <Printer className="size-4" aria-hidden /> Print
-                  </PrintButton>
+                  <a className={buttonClass("secondary", "sm")} href={`/violation-print?${dayQs}`} target="_blank" rel="noreferrer">
+                    <Printer className="size-3.5" aria-hidden /> Print
+                  </a>
                 </div>
               )}
             </div>
@@ -351,9 +351,9 @@ async function HeaderActions({ searchParams }: { searchParams: SP }) {
           <a className={buttonClass("secondary")} href={`/api/export/violations?format=csv${sep}${qs}`}>
             <FileText className="size-4" aria-hidden /> CSV
           </a>
-          <PrintButton>
+          <a className={buttonClass("secondary")} href={`/violation-print?${qs}`} target="_blank" rel="noreferrer">
             <Printer className="size-4" aria-hidden /> Print / PDF
-          </PrintButton>
+          </a>
         </>
       )}
       {can.manageRecords(user.role) && (

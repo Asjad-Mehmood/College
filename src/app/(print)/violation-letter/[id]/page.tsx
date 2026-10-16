@@ -121,11 +121,11 @@ async function Letter({
         Tip: click anywhere on the letter to edit the wording before printing.
       </p>
       <div className="px-4 py-6 print:p-0">
-        <style>{`@page { size: A4; margin: 18mm 16mm; }`}</style>
+        <style>{`@page { size: A4; margin: 0; }`}</style>
         <article
           contentEditable
           suppressContentEditableWarning
-          className="mx-auto max-w-[210mm] bg-white px-[16mm] py-[16mm] text-[14px] leading-relaxed text-black shadow-pop outline-none print:max-w-none print:p-0 print:shadow-none"
+          className="mx-auto max-w-[210mm] bg-white px-[16mm] py-[16mm] text-[14px] leading-relaxed text-black shadow-pop outline-none print:max-w-none print:px-[20mm] print:py-[18mm] print:shadow-none"
         >
           <header className="border-b-2 border-black pb-4 text-center">
             <p className="text-2xl font-bold tracking-tight uppercase">{settings.collegeName}</p>

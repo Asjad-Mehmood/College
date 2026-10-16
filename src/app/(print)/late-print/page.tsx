@@ -49,7 +49,7 @@ async function Sheet({ searchParams }: { searchParams: PageProps<"/late-print">[
 
   return (
     <div className="px-4 py-8 print:p-0">
-      <style>{`@page { size: A4 landscape; margin: 12mm; }`}</style>
+      <style>{`@page { size: A4 landscape; margin: 15mm 16mm; }`}</style>
       <article className="mx-auto max-w-[297mm] bg-white p-[12mm] text-[12px] leading-snug text-black shadow-pop print:max-w-none print:p-0 print:shadow-none">
         <header className="border-b-2 border-black pb-2 text-center">
           <p className="text-lg font-bold tracking-tight uppercase">{settings.collegeName}</p>

@@ -66,7 +66,7 @@ async function Docs({
         </div>
       </PrintToolbar>
       <div className="px-4 py-8 print:p-0">
-        <style>{`@page { size: A4; margin: 12mm; }`}</style>
+        <style>{`@page { size: A4; margin: 16mm; }`}</style>
         <div className="mx-auto flex max-w-[210mm] flex-col gap-6 print:max-w-none print:gap-0">
           {registered.length === 0 ? (
             <Paper>
