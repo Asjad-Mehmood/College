@@ -33,7 +33,7 @@ async function Team({ params }: { params: PageProps<"/sports/teams/[id]">["param
       include: {
         sport: true,
         event: true,
-        members: { orderBy: [{ student: { section: "asc" } }, { rollNo: "asc" }], include: { student: { select: { fullName: true, section: true, photoUrl: true, parentPhone: true } } } },
+        members: { orderBy: [{ student: { section: "asc" } }, { rollNo: "asc" }], include: { student: { select: { fullName: true, section: true, photoUrl: true, parentPhone: true, batch: { select: { name: true } } } } } },
         achievements: { orderBy: { achievedOn: "desc" }, include: { student: { select: { fullName: true } } } },
       },
     }),
@@ -76,6 +76,7 @@ async function Team({ params }: { params: PageProps<"/sports/teams/[id]">["param
           rollNo: m.rollNo,
           fullName: m.student.fullName,
           section: m.student.section,
+          batch: m.student.batch?.name ?? null,
           photoUrl: m.student.photoUrl,
           role: m.role,
           jerseyNo: m.jerseyNo,

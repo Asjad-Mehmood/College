@@ -26,6 +26,7 @@ import { whatsAppLink } from "@/lib/messages";
 import { getClassOptions } from "@/lib/records";
 import { getSettings } from "@/lib/settings";
 import { formatDate, formatMinutes, formatTime, fromDbDate, localParts, parseHHMM } from "@/lib/time";
+import { getScope } from "@/lib/scope";
 import { getTrip, tripParentMessage, tripSummary, tripWhen } from "@/lib/trips";
 import { RollCall, type RollCallRow } from "./roll-call";
 import { AddStudents, MessagePanel, ParticipantTable, type ParticipantView } from "./students";
@@ -70,7 +71,7 @@ async function Trip({
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
   const sp = await searchParams;
-  const [trip, settings] = await Promise.all([getTrip(id), getSettings()]);
+  const [trip, settings, scope] = await Promise.all([getTrip(id), getSettings(), getScope()]);
   if (!trip) notFound();
   // The Rooms tab only exists for night-stay trips.
   const tabs = TABS.filter((t) => t.key !== "rooms" || trip.overnight);
@@ -392,7 +393,15 @@ async function Trip({
       )}
 
       {tab === "students" && (
-        <StudentsTab trip={trip} admin={admin} fee={fee} when={when} collegeName={settings.collegeName} />
+        <StudentsTab
+          trip={trip}
+          admin={admin}
+          fee={fee}
+          when={when}
+          collegeName={settings.collegeName}
+          batch={scope.batch}
+          onlyBatch={sp.only === "batch" && !!scope.batch}
+        />
       )}
 
       {tab === "transport" && (
@@ -447,13 +456,31 @@ async function Trip({
 
 type TripData = NonNullable<Awaited<ReturnType<typeof getTrip>>>;
 
-async function StudentsTab({ trip, admin, fee, when, collegeName }: { trip: TripData; admin: boolean; fee: number; when: string; collegeName: string }) {
+async function StudentsTab({
+  trip,
+  admin,
+  fee,
+  when,
+  collegeName,
+  batch,
+  onlyBatch,
+}: {
+  trip: TripData;
+  admin: boolean;
+  fee: number;
+  when: string;
+  collegeName: string;
+  batch: { id: number; name: string } | null;
+  onlyBatch: boolean;
+}) {
   const { programs, sections } = await getClassOptions();
   const vehicleName = new Map(trip.vehicles.map((v) => [v.id, v.name]));
   const roomName = new Map(trip.rooms.map((r) => [r.id, r.name]));
   const consentBy = trip.consentDeadline ? formatDate(fromDbDate(trip.consentDeadline)) : null;
   const feeBy = trip.feeDeadline ? formatDate(fromDbDate(trip.feeDeadline)) : null;
-  const rows: ParticipantView[] = trip.participants.map((p) => {
+  const fromBatch = batch ? trip.participants.filter((p) => p.student.batchId === batch.id).length : 0;
+  const shown = onlyBatch && batch ? trip.participants.filter((p) => p.student.batchId === batch.id) : trip.participants;
+  const rows: ParticipantView[] = shown.map((p) => {
     const phone = p.emergencyPhone ?? p.student.parentPhone;
     const base = {
       studentName: p.student.fullName,
@@ -500,6 +527,26 @@ async function StudentsTab({ trip, admin, fee, when, collegeName }: { trip: Trip
         <p className="rounded-xl border border-line bg-surface px-4 py-3 text-[13px] text-ink-2">
           Registration is closed. Reopen it from the top of the page to add more students.
         </p>
+      )}
+      {batch && (
+        <div className="flex flex-wrap items-center gap-2 text-[13px]">
+          <span className="text-ink-2">Show:</span>
+          {[
+            { only: false, label: `Everyone (${trip.participants.length})` },
+            { only: true, label: `Only ${batch.name} (${fromBatch})` },
+          ].map((o) => (
+            <Link
+              key={o.label}
+              href={`/trips/${trip.id}?tab=students${o.only ? "&only=batch" : ""}`}
+              className={cx(
+                "rounded-full border px-3 py-1 font-medium",
+                onlyBatch === o.only ? "border-accent bg-accent-soft text-accent-ink" : "border-line text-ink-2 hover:bg-surface-2",
+              )}
+            >
+              {o.label}
+            </Link>
+          ))}
+        </div>
       )}
       <ParticipantTable rows={rows} fee={fee} editable={admin && trip.status !== "RETURNED" && trip.status !== "CANCELLED"} enrolmentOpen={enrolmentOpen} />
       {admin && rows.some((r) => r.status === "REGISTERED") && <MessagePanel rows={rows} fee={fee} />}

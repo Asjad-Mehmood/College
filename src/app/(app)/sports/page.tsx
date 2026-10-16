@@ -25,11 +25,20 @@ async function Content() {
   const prisma = await scoped();
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
   const admin = can.administer(user.role);
-  const today = (await getScope()).anchor;
+  const scope = await getScope();
+  const today = scope.anchor;
   const [events, sports] = await Promise.all([
     prisma.sportsEvent.findMany({
       orderBy: { startDate: "desc" },
-      include: { teams: { select: { sportId: true, _count: { select: { members: { where: { status: "SELECTED" } } } } } } },
+      include: {
+        teams: {
+          select: {
+            sportId: true,
+            _count: { select: { members: { where: { status: "SELECTED" } } } },
+            members: scope.batch ? { where: { status: "SELECTED", student: { batchId: scope.batch.id } }, select: { id: true } } : { where: { id: -1 }, select: { id: true } },
+          },
+        },
+      },
     }),
     prisma.sport.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }], include: { _count: { select: { teams: true } } } }),
   ]);
@@ -58,6 +67,7 @@ async function Content() {
             const live = start <= today && today <= end;
             const sportsCount = new Set(e.teams.map((t) => t.sportId)).size;
             const players = e.teams.reduce((n, t) => n + t._count.members, 0);
+            const fromBatch = e.teams.reduce((n, t) => n + t.members.length, 0);
             return (
               <Link key={e.id} href={`/sports/events/${e.id}`} className="group">
                 <Card className="h-full p-5 transition-colors group-hover:border-line-strong">
@@ -77,6 +87,12 @@ async function Content() {
                   <p className="mt-3 text-[13px] text-ink-2">
                     <span className="font-semibold text-ink tabular">{sportsCount}</span> sports ·{" "}
                     <span className="font-semibold text-ink tabular">{players}</span> players
+                    {scope.batch && (
+                      <>
+                        {" "}
+                        · <span className="font-semibold text-ink tabular">{fromBatch}</span> from {scope.batch.name}
+                      </>
+                    )}
                   </p>
                 </Card>
               </Link>

@@ -47,14 +47,18 @@ type TripCardData = Awaited<ReturnType<typeof loadTrips>>[number];
 
 async function loadTrips() {
   const prisma = await scoped();
-  return prisma.trip.findMany({
+  const { batch } = await getScope();
+  const trips = await prisma.trip.findMany({
     orderBy: [{ departDate: "desc" }, { id: "desc" }],
     take: 300,
     include: {
-      participants: { select: { status: true, consent: true, feePaid: true } },
-      _count: { select: { vehicles: true, staff: true } },
+      // With a batch selected, figures count only that batch's students.
+      participants: { where: batch ? { student: { batchId: batch.id } } : undefined, select: { status: true, consent: true, feePaid: true } },
+      _count: { select: { vehicles: true, staff: true, participants: { where: { status: "REGISTERED" } } } },
     },
   });
+  // A batch sees trips its students are on, plus trips nobody has joined yet.
+  return batch ? trips.filter((t) => t.participants.length > 0 || t._count.participants === 0) : trips;
 }
 
 const VIEWS = [
@@ -69,7 +73,8 @@ async function TripList({ searchParams }: { searchParams: PageProps<"/trips">["s
   await requireUser(["ADMIN", "PRINCIPAL"]);
   const sp = await searchParams;
   const all = await loadTrips();
-  const today = (await getScope()).anchor;
+  const scope = await getScope();
+  const today = scope.anchor;
   const q = (typeof sp.q === "string" ? sp.q.trim() : "").toLowerCase();
 
   const isNow = (t: TripCardData) => t.status === "DEPARTED";
@@ -112,7 +117,7 @@ async function TripList({ searchParams }: { searchParams: PageProps<"/trips">["s
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Upcoming trips" value={counts.upcoming} sub={counts.now > 0 ? `${counts.now} on a trip right now` : "none on a trip now"} />
-        <Stat label="Students going" value={students} sub="on upcoming and current trips" />
+        <Stat label="Students going" value={students} sub={scope.batch ? `from ${scope.batch.name}` : "on upcoming and current trips"} />
         <Stat label="Consent pending" value={consentPending} warn={consentPending > 0} sub="parents yet to reply" />
         <Stat
           label="Fees outstanding"
@@ -158,7 +163,7 @@ async function TripList({ searchParams }: { searchParams: PageProps<"/trips">["s
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {list.map((t) => (
-            <TripCard key={t.id} trip={t} today={today} />
+            <TripCard key={t.id} trip={t} today={today} batchName={scope.batch?.name} />
           ))}
         </div>
       )}
@@ -187,7 +192,7 @@ function countdown(depart: string, today: string, status: string) {
   return { text: `Leaves in ${days} days`, urgent: days <= 3 };
 }
 
-function TripCard({ trip: t, today }: { trip: TripCardData; today: string }) {
+function TripCard({ trip: t, today, batchName }: { trip: TripCardData; today: string; batchName?: string }) {
   const s = tripSummary(t, t.participants);
   const fee = Number(t.feeAmount);
   const depart = fromDbDate(t.departDate);
@@ -252,8 +257,13 @@ function TripCard({ trip: t, today }: { trip: TripCardData; today: string }) {
 
           {t.status !== "CANCELLED" && (
             <div className="mt-auto flex flex-col gap-2.5 pt-4">
+              {batchName && s.registered < t._count.participants && (
+                <p className="text-[12px] text-muted">
+                  <span className="font-medium text-ink tabular">{s.registered}</span> of {t._count.participants} students are from {batchName}
+                </p>
+              )}
               {t.seats != null ? (
-                <Meter label="Seats filled" value={s.registered} total={t.seats} />
+                <Meter label="Seats filled" value={t._count.participants} total={t.seats} />
               ) : (
                 <p className="flex items-center gap-1.5 text-[12px] text-muted">
                   <Users className="size-3.5" aria-hidden />

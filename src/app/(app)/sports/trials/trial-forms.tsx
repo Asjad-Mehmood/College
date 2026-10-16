@@ -48,7 +48,7 @@ export function NewTrialForm({ sports, today }: { sports: { id: number; name: st
   );
 }
 
-export type CandidateView = { id: number; fullName: string; rollNo: string; section: string; photoUrl: string | null; result: TrialResult; note: string | null };
+export type CandidateView = { id: number; fullName: string; rollNo: string; section: string; batch?: string | null; photoUrl: string | null; result: TrialResult; note: string | null };
 
 const RESULTS: { value: TrialResult; label: string }[] = [
   { value: "PENDING", label: "Pending" },
@@ -182,7 +182,10 @@ function CandidateRow({ c, editable }: { c: CandidateView; editable: boolean }) 
       <Avatar name={c.fullName} photoUrl={c.photoUrl} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{c.fullName}</p>
-        <p className="font-mono text-[12px] text-muted">{c.rollNo}</p>
+        <p className="text-[12px] text-muted">
+          <span className="font-mono">{c.rollNo}</span>
+          {c.batch && ` · ${c.batch}`}
+        </p>
       </div>
       {editable ? (
         <>

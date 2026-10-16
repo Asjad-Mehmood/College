@@ -26,6 +26,7 @@ export type MemberView = {
   rollNo: string;
   fullName: string;
   section: string;
+  batch: string | null;
   photoUrl: string | null;
   role: string;
   jerseyNo: number | null;
@@ -196,6 +197,7 @@ function MemberRow({ m, editable }: { m: MemberView; editable: boolean }) {
             </span>
             <span className="block truncate text-[12px] text-muted">
               <span className="font-mono">{m.rollNo}</span> · {m.section}
+              {m.batch && ` · ${m.batch}`}
               {m.medicalNote && ` · ${m.medicalNote}`}
             </span>
           </span>

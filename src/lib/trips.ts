@@ -23,6 +23,8 @@ export async function getTrip(id: number) {
               parentPhone: true,
               photoUrl: true,
               status: true,
+              batchId: true,
+              batch: { select: { name: true } },
             },
           },
         },

@@ -33,7 +33,7 @@ async function Trial({ params }: { params: PageProps<"/sports/trials/[id]">["par
     where: { id },
     include: {
       sport: { include: { teams: { orderBy: { event: { startDate: "desc" } }, include: { event: true } } } },
-      candidates: { orderBy: [{ student: { section: "asc" } }, { rollNo: "asc" }], include: { student: { select: { fullName: true, section: true, photoUrl: true } } } },
+      candidates: { orderBy: [{ student: { section: "asc" } }, { rollNo: "asc" }], include: { student: { select: { fullName: true, section: true, photoUrl: true, batch: { select: { name: true } } } } } },
     },
   });
   if (!trial) notFound();
@@ -61,6 +61,7 @@ async function Trial({ params }: { params: PageProps<"/sports/trials/[id]">["par
           fullName: c.student.fullName,
           rollNo: c.rollNo,
           section: c.student.section,
+          batch: c.student.batch?.name ?? null,
           photoUrl: c.student.photoUrl,
           result: c.result,
           note: c.note,
