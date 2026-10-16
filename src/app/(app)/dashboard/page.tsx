@@ -11,6 +11,7 @@ import {
   Inbox,
   Minus,
   ScanLine,
+  ShieldAlert,
   Users,
 } from "lucide-react";
 import { BarList, TrendChart } from "@/components/charts";
@@ -26,6 +27,7 @@ import {
   cx,
 } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
+import { SEVERITY_LABELS, SEVERITY_LEVEL } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { STRIKE_LABELS, strikeLevel } from "@/lib/strikes";
@@ -50,6 +52,9 @@ export default function DashboardPage() {
       </Suspense>
       <Suspense fallback={<DashboardSkeleton />}>
         <Dashboard />
+      </Suspense>
+      <Suspense fallback={<Skeleton className="mt-5 h-64 rounded-2xl" />}>
+        <ViolationsPanel />
       </Suspense>
     </div>
   );
@@ -350,6 +355,62 @@ async function Dashboard() {
         </Card>
       </div>
     </div>
+  );
+}
+
+async function ViolationsPanel() {
+  await requireUser(["ADMIN", "PRINCIPAL"]);
+  const settings = await getSettings();
+  const today = localParts(new Date(), settings.timezone).date;
+  const monthWhere = { incidentDate: { gte: toDbDate(monthStart(today)), lte: toDbDate(today) } };
+  const [thisMonth, severeThisMonth, open, recent] = await Promise.all([
+    prisma.violation.count({ where: monthWhere }),
+    prisma.violation.count({ where: { ...monthWhere, severity: "SEVERE" } }),
+    prisma.violation.count({ where: { status: "OPEN" } }),
+    prisma.violation.findMany({
+      orderBy: [{ incidentDate: "desc" }, { createdAt: "desc" }],
+      take: 5,
+      include: { student: { select: { fullName: true, program: true, section: true, photoUrl: true } }, type: { select: { name: true } } },
+    }),
+  ]);
+
+  return (
+    <Card className="mt-5">
+      <CardHeader
+        title="Discipline violations"
+        description={`${thisMonth} this month · ${severeThisMonth} severe · ${open} open ${open === 1 ? "case" : "cases"}`}
+        actions={
+          <Link href="/violations?status=OPEN" className="inline-flex items-center gap-1 text-[13px] font-medium text-accent-ink hover:underline">
+            Open cases <ArrowRight className="size-3.5" aria-hidden />
+          </Link>
+        }
+      />
+      {recent.length === 0 ? (
+        <EmptyState icon={<ShieldAlert className="size-5" />} title="No violations recorded yet" />
+      ) : (
+        <ul className="divide-y divide-line">
+          {recent.map((v) => (
+            <li key={v.id}>
+              <Link href={`/violations/${v.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-surface-2/50">
+                <Avatar name={v.student.fullName} photoUrl={v.student.photoUrl} size="sm" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {v.student.fullName} <span className="font-normal text-ink-2">· {v.type.name}</span>
+                  </span>
+                  <span className="block truncate text-[12px] text-muted">
+                    {formatDate(fromDbDate(v.incidentDate))} · {v.student.program} {v.student.section}
+                  </span>
+                </span>
+                {v.status === "OPEN" && (
+                  <span className="hidden text-[12px] font-medium text-accent-ink sm:inline">Open</span>
+                )}
+                <StrikeBadge level={SEVERITY_LEVEL[v.severity]} label={SEVERITY_LABELS[v.severity]} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 

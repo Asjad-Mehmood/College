@@ -99,6 +99,8 @@ async function main() {
   }
   await prisma.student.createMany({ data: students, skipDuplicates: true });
 
+  await seedViolations(students.map((s) => s.rollNo), created[0].id);
+
   if ((await prisma.lateRecord.count()) > 0) {
     console.log("Late records already exist; skipped generating history.");
     return;
@@ -139,6 +141,57 @@ async function main() {
   await prisma.lateRecord.createMany({ data: records, skipDuplicates: true });
   console.log(`Seeded ${students.length} students and ${records.length} late records.`);
   console.log('Demo logins (password "password123"): admin, gate, principal');
+}
+
+const INCIDENTS: Record<string, string[]> = {
+  "Uniform / dress code": ["Came without college uniform.", "Not wearing the college ID card and blazer."],
+  "Mobile phone in class": ["Using mobile phone during the lecture.", "Phone rang in class; was on social media."],
+  "Bunking class": ["Found in the canteen during the 3rd period.", "Left college after the 2nd period without permission."],
+  "Littering / smoking on campus": ["Caught smoking behind the science block."],
+  "Misbehaviour with staff": ["Argued rudely with the lab attendant."],
+  "Damage to college property": ["Wrote on the classroom desk and wall."],
+  "Unfair means in exam": ["Found with written notes during the monthly test."],
+  "Fighting / violence": ["Got into a fight with a classmate in the ground."],
+};
+
+async function seedViolations(rolls: string[], adminId: number) {
+  if ((await prisma.violation.count()) > 0) return;
+  const types = await prisma.violationType.findMany();
+  if (types.length === 0) return;
+  const data = [];
+  for (let i = 0; i < 28; i++) {
+    const type = pick(types.filter((t) => INCIDENTS[t.name]));
+    const day = Math.floor(rand() * 40);
+    const ymd = localDate(new Date(Date.now() - day * 86_400_000));
+    const severe = type.severity === "SEVERE";
+    const action = severe
+      ? pick(["SUSPENSION", "PARENT_MEETING", "REFERRED_TO_COMMITTEE"] as const)
+      : type.severity === "MAJOR"
+        ? pick(["WRITTEN_WARNING", "FINE", "PARENT_CALLED"] as const)
+        : pick(["VERBAL_WARNING", "VERBAL_WARNING", "WRITTEN_WARNING", "FINE"] as const);
+    const fine = action === "FINE" ? Math.max(200, Number(type.defaultFineAmount)) : 0;
+    data.push({
+      rollNo: i < 6 ? rolls[i % 3] : pick(rolls),
+      typeId: type.id,
+      severity: type.severity,
+      incidentDate: new Date(`${ymd}T00:00:00Z`),
+      incidentTime: `${String(9 + Math.floor(rand() * 5)).padStart(2, "0")}:${pick(["05", "20", "35", "50"])}`,
+      location: pick(["Classroom", "Canteen", "Corridor", "Ground", "Laboratory"]),
+      description: pick(INCIDENTS[type.name]),
+      reportedBy: pick(["Prof. Asif (Physics)", "Ms. Nadia (English)", "Mr. Kamran (Chemistry)", "Gate staff"]),
+      actionTaken: action,
+      suspensionDays: action === "SUSPENSION" ? 3 : null,
+      fineAmount: fine,
+      finePaid: fine > 0 && day > 10,
+      parentNotified: rand() < 0.7,
+      status: day > 14 ? ("CLOSED" as const) : ("OPEN" as const),
+      closedAt: day > 14 ? new Date() : null,
+      closingNote: day > 14 ? "Parent met the Discipline In-Charge; undertaking signed." : null,
+      recordedById: adminId,
+    });
+  }
+  await prisma.violation.createMany({ data });
+  console.log(`Seeded ${data.length} violations.`);
 }
 
 main()

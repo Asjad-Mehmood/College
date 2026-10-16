@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, FileWarning, History, MessageCircle, Phone, Ticket } from "lucide-react";
+import { ArrowLeft, FilePlus2, FileWarning, History, MessageCircle, Phone, ShieldCheck, Ticket } from "lucide-react";
 import { RecordManager } from "@/components/record-manager";
 import { StudentDialog } from "@/components/student-dialog";
 import {
@@ -19,7 +19,14 @@ import {
   buttonClass,
 } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
-import { ACTION_LABELS, REASON_LABELS, STUDENT_STATUS_LABELS } from "@/lib/labels";
+import {
+  ACTION_LABELS,
+  REASON_LABELS,
+  SEVERITY_LABELS,
+  SEVERITY_LEVEL,
+  STUDENT_STATUS_LABELS,
+  VIOLATION_ACTION_LABELS,
+} from "@/lib/labels";
 import { telLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
 import { getClassOptions } from "@/lib/records";
@@ -57,6 +64,10 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
   const student = await prisma.student.findUnique({
     where: { rollNo },
     include: {
+      violations: {
+        orderBy: [{ incidentDate: "desc" }, { createdAt: "desc" }],
+        include: { type: { select: { name: true } } },
+      },
       lateRecords: {
         orderBy: [{ lateDate: "asc" }, { arrivedAt: "asc" }],
         include: { recordedBy: { select: { fullName: true } } },
@@ -79,7 +90,10 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
   });
   const monthCount = perMonth.get(thisMonth) ?? 0;
   const level = strikeLevel(monthCount, settings);
-  const unpaid = history.filter((r) => r.fine > 0 && !r.finePaid).reduce((sum, r) => sum + r.fine, 0);
+  const violations = student.violations.map((v) => ({ ...v, fine: Number(v.fineAmount) }));
+  const openCases = violations.filter((v) => v.status === "OPEN").length;
+  // Unpaid fines from both late arrivals and violations.
+  const unpaid = [...history, ...violations].filter((r) => r.fine > 0 && !r.finePaid).reduce((sum, r) => sum + r.fine, 0);
   const manage = can.manageRecords(user.role);
 
   // Newest month first, newest record first within each month.
@@ -130,6 +144,11 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
             </div>
           </div>
           <div className="no-print flex flex-wrap gap-2 sm:justify-end">
+            {manage && (
+              <Link href={`/violations/new?roll=${encodeURIComponent(student.rollNo)}`} className={buttonClass("secondary")}>
+                <FilePlus2 className="size-4" aria-hidden /> Record violation
+              </Link>
+            )}
             <a href={`/letter/${encodeURIComponent(student.rollNo)}`} target="_blank" rel="noreferrer" className={buttonClass("primary")}>
               <FileWarning className="size-4" aria-hidden /> Warning letter
             </a>
@@ -153,7 +172,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Late this month">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-3xl font-semibold">{monthCount}</span>
@@ -162,6 +181,12 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
         </Stat>
         <Stat label="Late all time">
           <span className="text-3xl font-semibold">{history.length}</span>
+        </Stat>
+        <Stat label="Violations">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-3xl font-semibold">{violations.length}</span>
+            {openCases > 0 && <Pill tone="accent">{openCases} open</Pill>}
+          </div>
         </Stat>
         <Stat label="Unpaid fines">
           <span className="text-3xl font-semibold">Rs. {unpaid.toLocaleString()}</span>
@@ -253,6 +278,62 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
                 </tbody>
               );
             })}
+          </Table>
+        )}
+      </Card>
+
+      <Card className="overflow-hidden">
+        <CardHeader title="Discipline violations" description="Recorded violations, actions and case status." />
+        {violations.length === 0 ? (
+          <EmptyState icon={<ShieldCheck className="size-5" />} title="No violations on record" />
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <Th>Date</Th>
+                <Th>Violation</Th>
+                <Th>Severity</Th>
+                <Th>Action</Th>
+                <Th>Fine</Th>
+                <Th>Status</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {violations.map((v) => (
+                <tr key={v.id} className="hover:bg-surface-2/50">
+                  <Td className="whitespace-nowrap">
+                    <span className="block">{formatDate(fromDbDate(v.incidentDate), { weekday: true })}</span>
+                    <span className="block text-[12px] text-muted">Case #{v.id}</span>
+                  </Td>
+                  <Td className="max-w-72">
+                    <Link href={`/violations/${v.id}`} className="block font-medium hover:underline">
+                      {v.type.name}
+                    </Link>
+                    <span className="block truncate text-[12px] text-muted" title={v.description}>
+                      {v.description}
+                    </span>
+                  </Td>
+                  <Td>
+                    <StrikeBadge level={SEVERITY_LEVEL[v.severity]} label={SEVERITY_LABELS[v.severity]} />
+                  </Td>
+                  <Td className="text-[13px]">
+                    {v.actionTaken === "SUSPENSION" ? `Suspension · ${v.suspensionDays} days` : VIOLATION_ACTION_LABELS[v.actionTaken]}
+                  </Td>
+                  <Td>
+                    {v.fine > 0 ? (
+                      <Pill tone={v.finePaid ? "good" : "critical"}>
+                        Rs. {v.fine} · {v.finePaid ? "Paid" : "Unpaid"}
+                      </Pill>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <Pill tone={v.status === "OPEN" ? "accent" : "neutral"}>{v.status === "OPEN" ? "Open" : "Closed"}</Pill>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
           </Table>
         )}
       </Card>

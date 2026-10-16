@@ -6,6 +6,7 @@ import { ROLE_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { ImportForm, NewUserForm, ScheduleToggle, SettingsForm, UserRowActions } from "./forms";
+import { ViolationTypes } from "./violation-types";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -30,9 +31,13 @@ export default function SettingsPage() {
 async function SettingsContent() {
   const me = await requireUser(["ADMIN"]);
   const settings = await getSettings();
-  const [users, studentCount] = await Promise.all([
+  const [users, studentCount, violationTypes] = await Promise.all([
     prisma.user.findMany({ orderBy: [{ active: "desc" }, { role: "asc" }, { fullName: "asc" }] }),
     prisma.student.count(),
+    prisma.violationType.findMany({
+      orderBy: [{ active: "desc" }, { severity: "asc" }, { name: "asc" }],
+      include: { _count: { select: { violations: true } } },
+    }),
   ]);
 
   return (
@@ -66,6 +71,23 @@ async function SettingsContent() {
               }}
             />
           </div>
+        </Card>
+
+        <Card id="violation-types" className="scroll-mt-6">
+          <CardHeader
+            title="Violation types"
+            description="The list offered when recording a violation. Deactivate types you no longer use; past cases keep their type."
+          />
+          <ViolationTypes
+            types={violationTypes.map((t) => ({
+              id: t.id,
+              name: t.name,
+              severity: t.severity,
+              defaultFineAmount: Number(t.defaultFineAmount),
+              active: t.active,
+              uses: t._count.violations,
+            }))}
+          />
         </Card>
       </div>
 

@@ -1,8 +1,8 @@
 # Campus Portal
 
-Discipline and student-affairs management for the college. The first module handles **late arrivals**
-(gate check-in and the Discipline Office). Further modules, such as trip management and discipline violations, will be added
-as their own sections.
+Discipline and student-affairs management for the college. Modules so far: **late arrivals** (gate check-in and
+the Discipline Office) and **discipline violations**. Further modules, such as trip management, will be added as their
+own sections.
 
 The product name lives in `src/lib/app.ts`. The college's own name is set in Settings.
 
@@ -15,8 +15,10 @@ Built with Next.js 16, Prisma 7 and Neon Postgres, and deployed on Vercel.
 | **Gate check-in** (`/gate`) | Gate staff, Discipline In-Charge | Scan or type a roll number. The screen shows the student's photo, the month's strike count and minutes late. Choose a reason with keys **1–5** and save with **Enter**. Gate staff can then message the parent on WhatsApp/SMS and print a classroom entry slip. |
 | **Dashboard** (`/dashboard`) | In-Charge, Principal | Late today vs yesterday, habitual offenders, lates this month, pending fines, a 30-day trend and a by-program breakdown. |
 | **Late records** (`/records`) | In-Charge, Principal | Searchable ledger filtered by date range, program, section, strike level, habitual offenders or unpaid fines. Exports to Excel or CSV and prints to PDF. |
-| **Students** (`/students`, `/students/[roll]`) | In-Charge, Principal | Student directory and discipline profile, with call/WhatsApp buttons, full history and a printable warning letter. |
-| **Settings** (`/settings`) | In-Charge | Summer/winter timing switch, grace period, escalation thresholds, default fine, Excel/CSV student import and staff accounts. |
+| **Record violation** (`/violations/new`) | In-Charge | Find the student by roll number (shows past violations), choose the violation type (sets severity and suggested fine), enter date, time, place, what happened and who reported it, then the action taken (warning, fine, parent meeting, suspension with days, referral to the Discipline Committee). Then message the parent and print a notice. |
+| **Violation register** (`/violations`, `/violations/[id]`) | In-Charge, Principal | All cases with search and filters (date range, type, severity, program, section, open/closed, unpaid fines), Excel/CSV export and print. Each case page shows the full details and the student's other cases. The In-Charge can mark the fine paid, close the case with a note, reopen, edit or delete it. Printable parent notice on the letterhead, with an acknowledgement slip. |
+| **Students** (`/students`, `/students/[roll]`) | In-Charge, Principal | Student directory and discipline profile: late arrivals and violations, unpaid fines from both, call/WhatsApp buttons and a printable warning letter. |
+| **Settings** (`/settings`) | In-Charge | Summer/winter timing switch, grace period, escalation thresholds, default fine, violation types (name, severity, default fine, active), Excel/CSV student import and staff accounts. |
 
 The **escalation engine** colours every count by level, and each level also gets an icon and a label:
 below the habitual threshold → verbal warning; the habitual threshold (default 3) → written warning;

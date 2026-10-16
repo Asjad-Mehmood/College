@@ -1,8 +1,12 @@
+import type { StrikeLevel } from "@/lib/strikes";
 import type {
+  CaseStatus,
   DisciplineAction,
   LateReason,
   Role,
+  Severity,
   StudentStatus,
+  ViolationAction,
 } from "@/generated/prisma/enums";
 
 export const REASONS: { value: LateReason; label: string; key: string }[] = [
@@ -36,4 +40,33 @@ export const STUDENT_STATUS_LABELS: Record<StudentStatus, string> = {
   ACTIVE: "Active",
   STRUCK_OFF: "Struck off",
   GRADUATED: "Graduated",
+};
+
+export const SEVERITY_LABELS: Record<Severity, string> = {
+  MINOR: "Minor",
+  MAJOR: "Major",
+  SEVERE: "Severe",
+};
+
+/** Severity reuses the status colours (and icons) of the strike levels. */
+export const SEVERITY_LEVEL: Record<Severity, StrikeLevel> = {
+  MINOR: "warning",
+  MAJOR: "serious",
+  SEVERE: "critical",
+};
+
+export const VIOLATION_ACTION_LABELS: Record<ViolationAction, string> = {
+  VERBAL_WARNING: "Verbal warning",
+  WRITTEN_WARNING: "Written warning",
+  FINE: "Fine imposed",
+  PARENT_CALLED: "Parent called",
+  PARENT_MEETING: "Parent meeting",
+  DETENTION: "Detention",
+  SUSPENSION: "Suspension",
+  REFERRED_TO_COMMITTEE: "Referred to Discipline Committee",
+};
+
+export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
+  OPEN: "Open",
+  CLOSED: "Closed",
 };

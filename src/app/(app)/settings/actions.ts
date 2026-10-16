@@ -1,7 +1,8 @@
 "use server";
 
 import { refresh } from "next/cache";
-import type { Role } from "@/generated/prisma/enums";
+import type { Role, Severity } from "@/generated/prisma/enums";
+import { Prisma } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
@@ -125,4 +126,36 @@ export async function setUserActive(userId: number, active: boolean): Promise<Se
   ]);
   refresh();
   return { ok: true, message: active ? "Account re-activated." : "Account deactivated." };
+}
+
+const SEVERITIES: Severity[] = ["MINOR", "MAJOR", "SEVERE"];
+
+/** Creates a violation type, or updates one when `id` is present. */
+export async function saveViolationType(_: SettingsState, formData: FormData): Promise<SettingsState> {
+  await requireUser(["ADMIN"]);
+  const id = Number(formData.get("id")) || null;
+  const name = String(formData.get("name") ?? "").trim();
+  const severity = String(formData.get("severity") ?? "") as Severity;
+  const fine = Number(formData.get("defaultFineAmount"));
+  if (!name || name.length > 80) return { ok: false, message: "Give the violation a name (up to 80 characters)." };
+  if (!SEVERITIES.includes(severity)) return { ok: false, message: "Choose a severity." };
+  if (!Number.isFinite(fine) || fine < 0 || fine > 100_000) return { ok: false, message: "Enter a fine between 0 and 100,000." };
+  const data = { name, severity, defaultFineAmount: Math.round(fine) };
+  try {
+    if (id) await prisma.violationType.update({ where: { id }, data });
+    else await prisma.violationType.create({ data });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { ok: false, message: `“${name}” already exists.` };
+    }
+    throw e;
+  }
+  refresh();
+  return { ok: true, message: id ? "Violation type updated." : `Added “${name}”.` };
+}
+
+export async function setViolationTypeActive(id: number, active: boolean) {
+  await requireUser(["ADMIN"]);
+  await prisma.violationType.update({ where: { id }, data: { active } });
+  refresh();
 }

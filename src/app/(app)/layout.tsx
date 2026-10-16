@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { logout } from "@/app/(auth)/actions";
 import { BrandMark } from "@/components/brand";
-import { BottomNav, LogoutButton, SideNav } from "@/components/nav";
+import { BottomNav, LogoutButton, MobileMenu, SideNav } from "@/components/nav";
 import { Avatar, Skeleton } from "@/components/ui";
 import { APP_NAME, APP_TAGLINE } from "@/lib/app";
 import { requireUser } from "@/lib/auth";
@@ -33,9 +33,12 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
 
       {/* Mobile top bar */}
       <header className="no-print sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line bg-surface/95 px-4 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5">
+          <Suspense>
+            <MobileMenuForUser />
+          </Suspense>
           <BrandMark className="size-8" />
-          <p className="text-sm font-semibold">{APP_NAME}</p>
+          <p className="ml-1 text-sm font-semibold">{APP_NAME}</p>
         </div>
         <LogoutButton action={logout} compact />
       </header>
@@ -64,6 +67,11 @@ function NavSkeleton() {
 async function SideNavForUser() {
   const user = await requireUser();
   return <SideNav role={user.role} />;
+}
+
+async function MobileMenuForUser() {
+  const user = await requireUser();
+  return <MobileMenu role={user.role} />;
 }
 
 async function BottomNavForUser() {

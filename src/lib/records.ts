@@ -76,7 +76,14 @@ export function filtersToQuery(f: RecordFilters, overrides: Partial<RecordFilter
 }
 
 /** Inclusive YYYY-MM-DD bounds for the selected range; undefined = unbounded. */
-export function resolveRange(f: RecordFilters, timeZone: string): { from?: string; to?: string } {
+export function resolveRange(f: RecordFilters, timeZone: string) {
+  return resolveDateRange(f, timeZone);
+}
+
+export function resolveDateRange(
+  f: { range: RangeKey; from: string; to: string },
+  timeZone: string,
+): { from?: string; to?: string } {
   const today = localParts(new Date(), timeZone).date;
   switch (f.range) {
     case "today":

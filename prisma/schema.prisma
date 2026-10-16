@@ -44,6 +44,28 @@ enum Schedule {
   WINTER
 }
 
+enum Severity {
+  MINOR
+  MAJOR
+  SEVERE
+}
+
+enum ViolationAction {
+  VERBAL_WARNING
+  WRITTEN_WARNING
+  FINE
+  PARENT_CALLED
+  PARENT_MEETING
+  DETENTION
+  SUSPENSION
+  REFERRED_TO_COMMITTEE
+}
+
+enum CaseStatus {
+  OPEN
+  CLOSED
+}
+
 model Student {
   rollNo       String        @id @map("roll_no") @db.VarChar(20)
   fullName     String        @map("full_name") @db.VarChar(100)
@@ -58,6 +80,7 @@ model Student {
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
   lateRecords LateRecord[]
+  violations  Violation[]
 
   @@index([program, section])
   @@map("students")
@@ -101,6 +124,7 @@ model User {
 
   sessions    Session[]
   lateRecords LateRecord[]
+  violations  Violation[]
 
   @@map("users")
 }
@@ -135,4 +159,55 @@ model PortalSettings {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("portal_settings")
+}
+
+// Kinds of discipline violation, managed by the Discipline In-Charge.
+model ViolationType {
+  id                Int      @id @default(autoincrement())
+  name              String   @unique @db.VarChar(80)
+  severity          Severity @default(MINOR)
+  defaultFineAmount Decimal  @default(0) @map("default_fine_amount") @db.Decimal(8, 2)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  violations Violation[]
+
+  @@map("violation_types")
+}
+
+model Violation {
+  id             Int             @id @default(autoincrement())
+  rollNo         String          @map("roll_no") @db.VarChar(20)
+  typeId         Int             @map("type_id")
+  // Severity is copied from the type when recorded, so later edits to the
+  // type don't rewrite history.
+  severity       Severity
+  // College-local calendar date of the incident.
+  incidentDate   DateTime        @map("incident_date") @db.Date
+  // "HH:MM" in the college timezone, if known.
+  incidentTime   String?         @map("incident_time") @db.VarChar(5)
+  location       String?         @db.VarChar(100)
+  description    String
+  reportedBy     String?         @map("reported_by") @db.VarChar(100)
+  actionTaken    ViolationAction @default(VERBAL_WARNING) @map("action_taken")
+  suspensionDays Int?            @map("suspension_days")
+  fineAmount     Decimal         @default(0) @map("fine_amount") @db.Decimal(8, 2)
+  finePaid       Boolean         @default(false) @map("fine_paid")
+  finePaidAt     DateTime?       @map("fine_paid_at") @db.Timestamptz(3)
+  parentNotified Boolean         @default(false) @map("parent_notified")
+  status         CaseStatus      @default(OPEN)
+  closedAt       DateTime?       @map("closed_at") @db.Timestamptz(3)
+  closingNote    String?         @map("closing_note") @db.VarChar(300)
+  recordedById   Int             @map("recorded_by")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  student    Student       @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
+  type       ViolationType @relation(fields: [typeId], references: [id])
+  recordedBy User          @relation(fields: [recordedById], references: [id])
+
+  @@index([incidentDate])
+  @@index([rollNo])
+  @@index([status])
+  @@map("violations")
 }
