@@ -6,6 +6,9 @@ import { Prisma } from "@/generated/prisma/client";
 import type { StudentStatus, StudyYear } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { localParts } from "@/lib/time";
+import { getSettings } from "@/lib/settings";
+import { academicYearStart } from "@/lib/scope";
 
 export type StudentFormState = { ok?: boolean; message?: string } | null;
 
@@ -38,7 +41,21 @@ export async function saveStudent(_: StudentFormState, formData: FormData): Prom
   if (data.batchId && !(await prisma.batch.findUnique({ where: { id: data.batchId } }))) {
     return { ok: false, message: "Choose a batch from the list." };
   }
-  if (!(await prisma.section.findUnique({ where: { name: data.section } }))) {
+  const sectionRow = await prisma.section.findUnique({ where: { name: data.section } });
+  // A batch can only be in the sections of the year it is studying now.
+  if (sectionRow?.year && data.batchId) {
+    const b = await prisma.batch.findUnique({ where: { id: data.batchId } });
+    const today = localParts(new Date(), (await getSettings()).timezone).date;
+    const studying = b && !b.passedOut ? academicYearStart(today) - b.startYear : null;
+    const expected = sectionRow.year === "FIRST" ? 0 : 1;
+    if (b && studying !== null && studying !== expected && (studying === 0 || studying === 1)) {
+      return {
+        ok: false,
+        message: `${b.name} is in ${studying === 0 ? "1st" : "2nd"} year now, but section ${data.section} is a ${expected === 0 ? "1st" : "2nd"}-year section. Choose a matching section or batch.`,
+      };
+    }
+  }
+  if (!sectionRow) {
     return { ok: false, message: "Choose a section from the list. Create the section first if it doesn't exist." };
   }
   // An uploaded photo follows the student if the roll number changes.

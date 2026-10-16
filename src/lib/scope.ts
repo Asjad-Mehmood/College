@@ -24,6 +24,23 @@ export type Scope = {
 };
 
 /** Academic years run 1 August – 31 July. */
+/** Start year of the academic year a date falls in (years start 1 August). */
+export function academicYearStart(ymd: string) {
+  return yearFor(ymd).start;
+}
+
+/**
+ * The batch that should be in a section of the given year (1st/2nd) during
+ * the current academic year, if there is exactly one.
+ */
+export async function batchForSectionYear(year: "FIRST" | "SECOND" | null) {
+  if (!year) return null;
+  const today = localParts(new Date(), (await getSettings()).timezone).date;
+  const start = academicYearStart(today) - (year === "FIRST" ? 0 : 1);
+  const matches = await prisma.batch.findMany({ where: { startYear: start, passedOut: false }, select: { id: true } });
+  return matches.length === 1 ? matches[0].id : null;
+}
+
 function yearFor(ymd: string) {
   const y = Number(ymd.slice(0, 4));
   const start = Number(ymd.slice(5, 7)) >= 8 ? y : y - 1;

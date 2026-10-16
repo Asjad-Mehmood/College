@@ -6,7 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import { isEmail } from "@/lib/email";
-import { defaultBatchId } from "@/lib/scope";
+import { batchForSectionYear, defaultBatchId } from "@/lib/scope";
 import { prisma } from "@/lib/prisma";
 import { importStudents, type ImportReport } from "@/lib/student-import";
 
@@ -85,7 +85,10 @@ export async function uploadStudents(_: ImportReport | null, formData: FormData)
   }
   // New students go into the batch chosen on the form (default: the selected or newest batch).
   const batchId = Number(formData.get("batchId")) || (await defaultBatchId());
-  const report = await importStudents(file, batchId);
+  const report = await importStudents(file, batchId, async (section) => {
+    const row = await prisma.section.findUnique({ where: { name: section }, select: { year: true } });
+    return batchForSectionYear(row?.year ?? null);
+  });
   if (report.ok) refresh();
   return report;
 }

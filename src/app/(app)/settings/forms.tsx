@@ -169,7 +169,7 @@ export function ImportForm({ batches = [], defaultBatchId }: { batches?: { id: n
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {batches.length > 0 && (
-        <Field label="Put new students in batch" hint="Students already in the portal keep their batch.">
+        <Field label="Batch for new students" hint="Students go to the batch studying in their section’s year; this is used when the section has no year set. Existing students keep their batch.">
           <Select name="batchId" defaultValue={String(defaultBatchId ?? "")}>
             <option value="">No batch</option>
             {batches.map((b) => (

@@ -55,7 +55,11 @@ function status(value: string) {
   return null;
 }
 
-export async function importStudents(file: File, batchId: number | null = null): Promise<ImportReport> {
+export async function importStudents(
+  file: File,
+  batchId: number | null = null,
+  batchForSection: (section: string) => Promise<number | null> = async () => null,
+): Promise<ImportReport> {
   let rows: Record<string, unknown>[];
   try {
     const book = XLSX.read(await file.arrayBuffer(), { type: "array", raw: false });
@@ -127,11 +131,14 @@ export async function importStudents(file: File, batchId: number | null = null):
   const hasPhoto = [...mapping.values()].includes("photoUrl");
   const hasStudentPhone = [...mapping.values()].includes("studentPhone");
   const hasStatus = [...mapping.values()].includes("status");
+  // New students go to the batch studying in their section's year; otherwise the chosen batch.
+  const bySection = new Map<string, number | null>();
+  for (const sec of new Set(records.map((r) => r.section ?? ""))) bySection.set(sec, (await batchForSection(sec)) ?? batchId);
   for (let i = 0; i < records.length; i += 500) {
     const chunk = records.slice(i, i + 500);
     const values = chunk.map(
       (r) =>
-        Prisma.sql`(${r.rollNo}, ${r.fullName}, ${r.fatherName}, ${r.program}, ${r.section}, ${r.studentPhone}, ${r.parentPhone}, ${r.photoUrl}, ${r.status}::"StudentStatus", ${batchId}, now(), now())`,
+        Prisma.sql`(${r.rollNo}, ${r.fullName}, ${r.fatherName}, ${r.program}, ${r.section}, ${r.studentPhone}, ${r.parentPhone}, ${r.photoUrl}, ${r.status}::"StudentStatus", ${bySection.get(r.section ?? "") ?? batchId}, now(), now())`,
     );
     await prisma.$executeRaw`
       INSERT INTO students (roll_no, full_name, father_name, program, section, student_phone, parent_phone, photo_url, status, batch_id, created_at, updated_at)

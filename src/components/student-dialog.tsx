@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Pencil, UserPlus, X } from "lucide-react";
 import { saveStudent } from "@/app/(app)/students/actions";
 import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
@@ -28,11 +28,20 @@ export function StudentDialog({
   defaultBatchId,
 }: {
   defaultSection?: string;
-  batches?: { id: number; name: string; passedOut: boolean }[];
+  batches?: { id: number; name: string; passedOut: boolean; startYear: number }[];
   defaultBatchId?: number | null; student?: StudentFields; programs: string[]; sections: { name: string; year: "FIRST" | "SECOND" | null; shift?: "MORNING" | "EVENING" }[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const editing = !!student;
   const [state, onSubmit, pending] = useFormAction(saveStudent, null, { resetOnSuccess: !editing });
+  // The academic year starts in August; a batch is in 1st year in the year it joined.
+  const now = new Date();
+  const yearStart = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  const yearOf = (b?: { startYear: number; passedOut: boolean }) =>
+    !b || b.passedOut ? null : yearStart - b.startYear === 0 ? ("FIRST" as const) : yearStart - b.startYear === 1 ? ("SECOND" as const) : null;
+  const [batchId, setBatchId] = useState(String(student ? (student.batchId ?? "") : (defaultBatchId ?? "")));
+  const [section, setSection] = useState(student?.section ?? defaultSection ?? "");
+  const batchYear = yearOf(batches.find((x) => String(x.id) === batchId));
+  const batchHint = batchYear ? `In ${batchYear === "FIRST" ? "1st" : "2nd"} year now — only ${batchYear === "FIRST" ? "1st" : "2nd"}-year sections are shown` : "The batch this student joined with";
 
   return (
     <>
@@ -82,37 +91,67 @@ export function StudentDialog({
                 {student && !programs.includes(student.program) && <option value={student.program}>{student.program}</option>}
               </Select>
             </Field>
+            <Field label="Batch" hint={batchHint}>
+              <Select
+                name="batchId"
+                value={batchId}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setBatchId(next);
+                  // Keep the section only if it belongs to the new batch's year.
+                  const want = yearOf(batches.find((x) => String(x.id) === next));
+                  const cur = sections.find((x) => x.name === section);
+                  if (want && cur?.year && cur.year !== want) setSection("");
+                }}
+              >
+                <option value="">No batch</option>
+                {batches.map((b) => {
+                  const y = yearOf(b);
+                  return (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                      {b.passedOut ? " (passed out)" : y === "FIRST" ? " — now 1st year" : y === "SECOND" ? " — now 2nd year" : ""}
+                    </option>
+                  );
+                })}
+              </Select>
+            </Field>
             <Field label="Section *" hint={sections.length === 0 ? "Create a section first (Students → By section)." : undefined}>
-              <Select name="section" required defaultValue={student?.section ?? defaultSection ?? ""}>
+              <Select
+                name="section"
+                required
+                value={section}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setSection(next);
+                  // Picking a section picks the batch studying in that year.
+                  const y = sections.find((x) => x.name === next)?.year;
+                  if (y && yearOf(batches.find((x) => String(x.id) === batchId)) !== y) {
+                    const match = batches.filter((x) => !x.passedOut && yearOf(x) === y);
+                    if (match.length === 1) setBatchId(String(match[0].id));
+                  }
+                }}
+              >
                 <option value="" disabled>
                   Choose a section…
                 </option>
-                {(["FIRST", "SECOND", null] as const).map((y) => {
-                  const list = sections.filter((x) => x.year === y);
-                  if (list.length === 0) return null;
-                  return (
-                    <optgroup key={y ?? "none"} label={y === "FIRST" ? "1st year" : y === "SECOND" ? "2nd year" : "Year not set"}>
-                      {list.map((x) => (
-                        <option key={x.name} value={x.name}>
-                          {x.name}
-                          {x.shift === "EVENING" ? " (evening)" : ""}
-                        </option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
+                {(["FIRST", "SECOND", null] as const)
+                  .filter((y) => !batchYear || y === batchYear || y === null)
+                  .map((y) => {
+                    const list = sections.filter((x) => x.year === y);
+                    if (list.length === 0) return null;
+                    return (
+                      <optgroup key={y ?? "none"} label={y === "FIRST" ? "1st year" : y === "SECOND" ? "2nd year" : "Year not set"}>
+                        {list.map((x) => (
+                          <option key={x.name} value={x.name}>
+                            {x.name}
+                            {x.shift === "EVENING" ? " (evening)" : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 {student && !sections.some((x) => x.name === student.section) && <option value={student.section}>{student.section}</option>}
-              </Select>
-            </Field>
-            <Field label="Batch" hint="The batch this student joined with">
-              <Select name="batchId" defaultValue={String(student ? (student.batchId ?? "") : (defaultBatchId ?? ""))}>
-                <option value="">No batch</option>
-                {batches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                    {b.passedOut ? " (passed out)" : ""}
-                  </option>
-                ))}
               </Select>
             </Field>
             <Field label="Parent phone *" hint="Used for WhatsApp / SMS alerts">
