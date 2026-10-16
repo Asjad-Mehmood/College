@@ -31,6 +31,9 @@ export async function saveStudent(_: StudentFormState, formData: FormData): Prom
     return { ok: false, message: "Fill in every required field." };
   }
   if (data.rollNo.length > 20) return { ok: false, message: "Roll number must be 20 characters or fewer." };
+  if (!(await prisma.program.findUnique({ where: { name: data.program } }))) {
+    return { ok: false, message: "Choose a program from the list." };
+  }
   if (!(await prisma.section.findUnique({ where: { name: data.section } }))) {
     return { ok: false, message: "Choose a section from the list. Create the section first if it doesn't exist." };
   }
@@ -112,4 +115,31 @@ export async function deleteSection(id: number): Promise<StudentFormState> {
   if (students > 0) return { ok: false, message: `${students} students are in ${section.name}. Move them first.` };
   await prisma.section.delete({ where: { id } });
   redirect("/students");
+}
+
+/* ---------- Programs ---------- */
+
+export async function createProgram(_: StudentFormState, fd: FormData): Promise<StudentFormState> {
+  await requireUser(["ADMIN"]);
+  const name = String(fd.get("name") ?? "").trim().replace(/\s+/g, " ").slice(0, 50);
+  if (!name) return { ok: false, message: "Enter the program name." };
+  try {
+    await prisma.program.create({ data: { name } });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { ok: false, message: `${name} already exists.` };
+    throw e;
+  }
+  refresh();
+  return { ok: true, message: `Added ${name}.` };
+}
+
+export async function deleteProgram(id: number): Promise<StudentFormState> {
+  await requireUser(["ADMIN"]);
+  const program = await prisma.program.findUnique({ where: { id } });
+  if (!program) return { ok: false, message: "Program not found." };
+  const students = await prisma.student.count({ where: { program: program.name } });
+  if (students > 0) return { ok: false, message: `${students} students are in ${program.name}.` };
+  await prisma.program.delete({ where: { id } });
+  refresh();
+  return { ok: true };
 }

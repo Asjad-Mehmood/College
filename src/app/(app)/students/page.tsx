@@ -6,7 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { StudentStatus } from "@/generated/prisma/enums";
 import { FilterForm } from "@/components/filter-form";
 import { StudentDialog } from "@/components/student-dialog";
-import { NewSectionForm, SectionSettings } from "./section-forms";
+import { NewSectionForm, ProgramsCard, SectionSettings } from "./section-forms";
 import {
   Avatar,
   ButtonLink,
@@ -121,8 +121,9 @@ async function SectionsOverview() {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
   const settings = await getSettings();
   const today = localParts(new Date(), settings.timezone).date;
-  const [sections, groups, lates] = await Promise.all([
+  const [sections, programRows, groups, lates] = await Promise.all([
     getSectionOptions(),
+    prisma.program.findMany({ orderBy: { name: "asc" } }),
     prisma.student.groupBy({ by: ["section", "program"], where: { status: "ACTIVE" }, _count: { _all: true } }),
     prisma.$queryRaw<{ section: string; lates: bigint }[]>`
       SELECT s.section, COUNT(*) AS lates
@@ -132,6 +133,8 @@ async function SectionsOverview() {
     `,
   ]);
   const latesBySection = new Map(lates.map((l) => [l.section, Number(l.lates)]));
+  const programCounts = new Map<string, number>();
+  for (const g of groups) programCounts.set(g.program, (programCounts.get(g.program) ?? 0) + g._count._all);
   const info = new Map<string, { count: number; programs: string[] }>();
   for (const g of groups) {
     const entry = info.get(g.section) ?? { count: 0, programs: [] };
@@ -150,7 +153,12 @@ async function SectionsOverview() {
 
   return (
     <div className="flex flex-col gap-5">
-      {can.administer(user.role) && <NewSectionForm />}
+      {can.administer(user.role) && (
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <NewSectionForm />
+          <ProgramsCard programs={programRows.map((p) => ({ id: p.id, name: p.name, students: programCounts.get(p.name) ?? 0 }))} />
+        </div>
+      )}
       {sections.length === 0 ? (
         <Card>
           <EmptyState icon={<UserX className="size-5" />} title="No sections yet">

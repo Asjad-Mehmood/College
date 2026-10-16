@@ -513,3 +513,12 @@ model Section {
 
   @@map("sections")
 }
+
+// A program / group offered by the college (Medical, ICS, DIT, I.Com, FA…).
+model Program {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("programs")
+}

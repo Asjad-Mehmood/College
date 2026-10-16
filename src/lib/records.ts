@@ -246,7 +246,8 @@ export async function getClassOptions() {
     select: { program: true, section: true },
     orderBy: [{ program: "asc" }, { section: "asc" }],
   });
-  const programs = [...new Set(rows.map((r) => r.program))];
+  const knownPrograms = await prisma.program.findMany({ select: { name: true }, orderBy: { name: "asc" } });
+  const programs = [...new Set([...knownPrograms.map((p) => p.name), ...rows.map((r) => r.program)])];
   const known = await prisma.section.findMany({ select: { name: true } });
   const sections = [...new Set([...known.map((k) => k.name), ...rows.map((r) => r.section)])].sort(compareSections);
   return { programs, sections };

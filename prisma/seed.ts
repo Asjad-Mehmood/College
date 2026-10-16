@@ -79,6 +79,7 @@ async function main() {
     );
   }
 
+  await prisma.program.createMany({ data: PROGRAMS.map((p) => ({ name: p.name })), skipDuplicates: true });
   await prisma.section.createMany({
     data: PROGRAMS.flatMap((p) => p.sections.map((name, i) => ({ name, year: i % 2 === 0 ? ("FIRST" as const) : ("SECOND" as const) }))),
     skipDuplicates: true,

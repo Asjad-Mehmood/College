@@ -59,12 +59,17 @@ export function StudentDialog({ student, programs, sections }: { student?: Stude
               <Input name="fatherName" required maxLength={100} defaultValue={student?.fatherName} />
             </Field>
             <Field label="Program *">
-              <Input name="program" required maxLength={50} list="program-options" defaultValue={student?.program} placeholder="e.g. ICS" />
-              <datalist id="program-options">
+              <Select name="program" required defaultValue={student?.program ?? ""}>
+                <option value="" disabled>
+                  Choose a program…
+                </option>
                 {programs.map((p) => (
-                  <option key={p} value={p} />
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
                 ))}
-              </datalist>
+                {student && !programs.includes(student.program) && <option value={student.program}>{student.program}</option>}
+              </Select>
             </Field>
             <Field label="Section *" hint={sections.length === 0 ? "Create a section first (Students → By section)." : undefined}>
               <Select name="section" required defaultValue={student?.section ?? ""}>

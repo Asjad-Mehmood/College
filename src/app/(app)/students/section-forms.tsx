@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button, Card, CardHeader, Field, FormMessage, Input, Select } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
-import { createSection, deleteSection, updateSection, type StudentFormState } from "./actions";
+import { createProgram, createSection, deleteProgram, deleteSection, updateSection, type StudentFormState } from "./actions";
 
 export function NewSectionForm() {
   const [state, onSubmit, pending] = useFormAction<StudentFormState>(createSection, null, { resetOnSuccess: true });
@@ -79,5 +79,44 @@ export function SectionSettings({ id, name, year, students }: { id: number; name
       )}
       {state && !state.ok && <FormMessage state={state} />}
     </form>
+  );
+}
+
+export function ProgramsCard({ programs }: { programs: { id: number; name: string; students: number }[] }) {
+  const [state, onSubmit, pending] = useFormAction<StudentFormState>(createProgram, null, { resetOnSuccess: true });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, start] = useTransition();
+  return (
+    <Card>
+      <CardHeader title="Programs" description="The list offered when adding a student (Medical, ICS, DIT, I.Com, FA…)." />
+      <div className="flex flex-col gap-3 p-5">
+        <div className="flex flex-wrap gap-2">
+          {programs.map((p) => (
+            <span key={p.id} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2/60 py-1 pr-1.5 pl-3 text-[13px]">
+              {p.name} <span className="text-muted tabular">{p.students}</span>
+              {p.students === 0 && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => start(async () => setError((await deleteProgram(p.id))?.ok ? null : "Couldn't remove."))}
+                  className="rounded-full p-0.5 text-muted hover:bg-surface-3 hover:text-ink"
+                  aria-label={`Remove ${p.name}`}
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+        <form onSubmit={onSubmit} className="flex max-w-md gap-2">
+          <Input name="name" required maxLength={50} placeholder="Add a program, e.g. DIT" aria-label="Program name" />
+          <Button type="submit" disabled={pending}>
+            <Plus className="size-4" aria-hidden /> Add
+          </Button>
+        </form>
+        <FormMessage state={state} />
+        {error && <p className="text-[13px] text-danger-ink">{error}</p>}
+      </div>
+    </Card>
   );
 }
