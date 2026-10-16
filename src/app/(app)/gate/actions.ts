@@ -11,6 +11,7 @@ import { strikeLevel, type StrikeLevel } from "@/lib/strikes";
 import { resolveRoll } from "@/lib/student-lookup";
 import {
   formatMinutes,
+  fromDbDate,
   localParts,
   monthStart,
   nextMonthStart,
@@ -43,6 +44,8 @@ export type LookupResult =
       withinGrace: boolean;
       startTime: string;
       defaultFine: number;
+      /** Latest late arrivals of this student (newest first) */
+      recent: { date: string; minutesLate: number }[];
     }
   | { ok: false; error: string; suggestions: GateStudent[] };
 
@@ -93,7 +96,7 @@ export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
   }
 
   const { today, arrivalTime, minutesLate } = arrival(settings);
-  const [monthCount, todayRecord] = await Promise.all([
+  const [monthCount, todayRecord, recentRows] = await Promise.all([
     prisma.lateRecord.count({
       where: {
         rollNo: student.rollNo,
@@ -103,6 +106,12 @@ export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
     prisma.lateRecord.findUnique({
       where: { rollNo_lateDate: { rollNo: student.rollNo, lateDate: toDbDate(today) } },
       select: { id: true, arrivedAt: true },
+    }),
+    prisma.lateRecord.findMany({
+      where: { rollNo: student.rollNo },
+      orderBy: { lateDate: "desc" },
+      take: 4,
+      select: { lateDate: true, minutesLate: true },
     }),
   ]);
 
@@ -124,7 +133,40 @@ export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
     withinGrace: minutesLate <= settings.gracePeriodMins,
     startTime: formatMinutes(settings.startMinutes),
     defaultFine: settings.defaultFineAmount,
+    recent: recentRows.map((r) => ({ date: fromDbDate(r.lateDate), minutesLate: r.minutesLate })),
   };
+}
+
+/** Type-ahead for the roll box: matches roll number (any part) or name. */
+export async function searchStudents(raw: string): Promise<GateStudent[]> {
+  await requireUser(["ADMIN", "GATE"]);
+  const q = raw.trim().slice(0, 60);
+  if (q.length < 2) return [];
+  return prisma.student.findMany({
+    where: {
+      status: "ACTIVE",
+      OR: [
+        { rollNo: { contains: q, mode: "insensitive" } },
+        { fullName: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    select: studentSelect,
+    take: 6,
+    orderBy: { rollNo: "asc" },
+  });
+}
+
+/** Undo a mistaken entry. Only today's records can be removed from the gate. */
+export async function undoLateArrival(id: number): Promise<{ ok: boolean; error?: string }> {
+  await requireUser(["ADMIN", "GATE"]);
+  const settings = await getSettings();
+  const today = localParts(new Date(), settings.timezone).date;
+  const record = await prisma.lateRecord.findUnique({ where: { id }, select: { lateDate: true } });
+  if (!record) return { ok: false, error: "Entry not found." };
+  if (fromDbDate(record.lateDate) !== today) return { ok: false, error: "Only today's entries can be removed here." };
+  await prisma.lateRecord.delete({ where: { id } });
+  refresh();
+  return { ok: true };
 }
 
 export type LogResult =

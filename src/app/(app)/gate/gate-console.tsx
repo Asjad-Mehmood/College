@@ -23,6 +23,7 @@ import { STRIKE_GUIDANCE, STRIKE_LABELS, ordinal } from "@/lib/strikes";
 import {
   logLateArrival,
   lookupStudent,
+  searchStudents,
   type GateStudent,
   type LogResult,
   type LookupResult,
@@ -55,6 +56,7 @@ export function GateConsole() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [looking, startLookup] = useTransition();
   const [saving, startSave] = useTransition();
+  const [matches, setMatches] = useState<GateStudent[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
 
@@ -91,6 +93,22 @@ export function GateConsole() {
       inputRef.current?.blur();
     });
   }, []);
+
+  // Type-ahead: after a short pause, suggest students matching the roll number or name.
+  useEffect(() => {
+    if (stage.kind !== "idle" || roll.trim().length < 2) return;
+    let live = true;
+    const t = setTimeout(async () => {
+      const res = await searchStudents(roll);
+      if (live) setMatches(res);
+    }, 220);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [roll, stage.kind]);
+
+  const shown = roll.trim().length >= 2 ? matches : [];
 
   const canSave =
     stage.kind === "preview" &&
@@ -160,7 +178,10 @@ export function GateConsole() {
             <input
               ref={inputRef}
               value={roll}
-              onChange={(e) => setRoll(e.target.value)}
+              onChange={(e) => {
+                setRoll(e.target.value);
+                if (stage.kind !== "idle") setStage({ kind: "idle" });
+              }}
               onFocus={(e) => e.target.select()}
               autoFocus
               autoComplete="off"
@@ -179,7 +200,37 @@ export function GateConsole() {
         </form>
       </Card>
 
-      {stage.kind === "idle" && <IdleHint />}
+      {stage.kind === "idle" && shown.length > 0 && (
+        <Card className="overflow-hidden">
+          <p className="border-b border-line px-4 py-2 text-[12px] font-medium tracking-wide text-muted uppercase">Matches</p>
+          <ul className="divide-y divide-line">
+            {shown.map((m) => (
+              <li key={m.rollNo}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRoll(m.rollNo);
+                    setMatches([]);
+                    lookup(m.rollNo);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2"
+                >
+                  <Avatar name={m.fullName} photoUrl={m.photoUrl} size="sm" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{m.fullName}</span>
+                    <span className="block truncate text-[12px] text-muted">
+                      <span className="font-mono">{m.rollNo}</span> · {m.program} {m.section}
+                    </span>
+                  </span>
+                  <ArrowRight className="size-4 text-muted" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {stage.kind === "idle" && shown.length === 0 && <IdleHint />}
 
       {stage.kind === "notFound" && (
         <Card className="p-5">
@@ -430,6 +481,16 @@ function StudentPreview({ data }: { data: Found }) {
             {STRIKE_GUIDANCE[data.level]}
             {data.monthCount > 0 && ` Previously late ${data.monthCount}× this month.`}
           </p>
+          {data.recent.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
+              <span>Recent lates:</span>
+              {data.recent.map((r) => (
+                <span key={r.date} className="rounded-full border border-line px-2 py-0.5 tabular">
+                  {r.date.slice(5).split("-").reverse().join("/")} · {r.minutesLate} min
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </Card>

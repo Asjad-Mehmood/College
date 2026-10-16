@@ -11,6 +11,7 @@ import { getSettings } from "@/lib/settings";
 import { ordinal, strikeLevel } from "@/lib/strikes";
 import { formatDate, formatMinutes, formatTime, localParts, monthStart, toDbDate } from "@/lib/time";
 import { GateConsole } from "./gate-console";
+import { UndoButton } from "./undo-button";
 
 export const metadata: Metadata = { title: "Gate check-in" };
 
@@ -91,6 +92,18 @@ async function TodayList() {
     : [];
   const countByRoll = new Map(counts.map((c) => [c.rollNo, c._count._all]));
   const linkProfiles = can.viewReports(user.role);
+  const repeat = records.filter((r) => (countByRoll.get(r.rollNo) ?? 1) >= settings.habitualThreshold).length;
+  const avgLate = records.length ? Math.round(records.reduce((a, r) => a + r.minutesLate, 0) / records.length) : 0;
+  const fines = records.reduce((a, r) => a + Number(r.fineAmount), 0);
+  const byReason = new Map<string, number>();
+  for (const r of records) byReason.set(r.reason, (byReason.get(r.reason) ?? 0) + 1);
+  const topReasons = [...byReason.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const stats = [
+    { label: "Late today", value: String(records.length) },
+    { label: "Habitual", value: String(repeat) },
+    { label: "Avg. late", value: `${avgLate}m` },
+    { label: "Fines", value: `Rs. ${fines.toLocaleString()}` },
+  ];
 
   return (
     <Card className="xl:sticky xl:top-6">
@@ -98,6 +111,23 @@ async function TodayList() {
         title="Logged today"
         description={`${records.length} late ${records.length === 1 ? "arrival" : "arrivals"} so far`}
       />
+      {records.length > 0 && (
+        <div className="border-b border-line px-5 py-3">
+          <dl className="grid grid-cols-4 gap-2 text-center">
+            {stats.map((x) => (
+              <div key={x.label}>
+                <dd className="text-sm font-semibold tabular">{x.value}</dd>
+                <dt className="text-[11px] text-muted">{x.label}</dt>
+              </div>
+            ))}
+          </dl>
+          {topReasons.length > 0 && (
+            <p className="mt-2 truncate text-center text-[12px] text-muted">
+              {topReasons.map(([k, n]) => `${REASON_LABELS[k as keyof typeof REASON_LABELS]} ${n}`).join(" · ")}
+            </p>
+          )}
+        </div>
+      )}
       {records.length === 0 ? (
         <EmptyState icon={<Inbox className="size-5" />} title="No late arrivals yet">
           Entries appear here as soon as they&apos;re saved.
@@ -120,7 +150,14 @@ async function TodayList() {
                   <p className="truncate text-sm font-medium">{name}</p>
                   <p className="truncate text-[12px] text-muted">
                     <span className="font-mono">{r.rollNo}</span> · {r.student.program} {r.student.section} ·{" "}
-                    {REASON_LABELS[r.reason]}
+                    {REASON_LABELS[r.reason]} · {r.minutesLate} min late
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-3 text-[12px]">
+                    <a href={`/pass/${r.id}`} target="_blank" rel="noreferrer" className="font-medium text-accent-ink hover:underline">
+                      Reprint pass
+                    </a>
+                    {Number(r.fineAmount) > 0 && <span className="text-ink-2">Fine Rs. {Number(r.fineAmount)}</span>}
+                    <UndoButton id={r.id} name={r.student.fullName} />
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
