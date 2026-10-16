@@ -7,14 +7,14 @@ import { can, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { formatDate, fromDbDate, localParts } from "@/lib/time";
-import { HousesManager, NewEventForm, SportsManager } from "./sports-forms";
+import { NewEventForm, SportsManager } from "./sports-forms";
 
 export const metadata: Metadata = { title: "Sports" };
 
 export default function SportsPage() {
   return (
     <div>
-      <PageHeader title="Sports events" description="College sports events, their sports and house teams." />
+      <PageHeader title="Sports events" description="College sports events, their sports and players." />
       <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
         <Content />
       </Suspense>
@@ -27,20 +27,19 @@ async function Content() {
   const admin = can.administer(user.role);
   const settings = await getSettings();
   const today = localParts(new Date(), settings.timezone).date;
-  const [events, sports, houses] = await Promise.all([
+  const [events, sports] = await Promise.all([
     prisma.sportsEvent.findMany({
       orderBy: { startDate: "desc" },
       include: { teams: { select: { sportId: true, _count: { select: { members: { where: { status: "SELECTED" } } } } } } },
     }),
     prisma.sport.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }], include: { _count: { select: { teams: true } } } }),
-    prisma.house.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }] }),
   ]);
 
   return (
     <div className="flex flex-col gap-5">
       {admin && (
         <Card>
-          <CardHeader title="New sports event" description="Then add sports to it (Badminton, Cricket…) and pick each house's players." />
+          <CardHeader title="New sports event" description="Then add sports to it (Badminton, Cricket…) and pick the players." />
           <div className="p-5">
             <NewEventForm today={today} />
           </div>
@@ -87,16 +86,10 @@ async function Content() {
         </div>
       )}
       {admin && (
-        <div className="grid items-start gap-5 lg:grid-cols-2">
-          <Card>
-            <CardHeader title="Houses" description="Teams are made per house in each sport." />
-            <HousesManager houses={houses.map((h) => ({ id: h.id, name: h.name, color: h.color, inCharge: h.inCharge, active: h.active }))} />
-          </Card>
-          <Card>
-            <CardHeader title="Sports" description="Add any sport; it can then be used in every event." />
-            <SportsManager sports={sports.map((s) => ({ id: s.id, name: s.name, coach: s.coach, active: s.active, teams: s._count.teams }))} />
-          </Card>
-        </div>
+        <Card>
+          <CardHeader title="Sports" description="Add any sport; it can then be used in every event." />
+          <SportsManager sports={sports.map((s) => ({ id: s.id, name: s.name, coach: s.coach, active: s.active, teams: s._count.teams }))} />
+        </Card>
       )}
     </div>
   );

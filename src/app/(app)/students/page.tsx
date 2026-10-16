@@ -6,6 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { StudentStatus } from "@/generated/prisma/enums";
 import { FilterForm } from "@/components/filter-form";
 import { StudentDialog } from "@/components/student-dialog";
+import { NewSectionForm, SectionSettings } from "./section-forms";
 import {
   Avatar,
   ButtonLink,
@@ -27,7 +28,7 @@ import { can, requireUser } from "@/lib/auth";
 import { STUDENT_STATUS_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getClassOptions } from "@/lib/records";
-import { compareSections } from "@/lib/sections";
+import { YEAR_LABELS, getSectionOptions } from "@/lib/section-options";
 import { getSettings } from "@/lib/settings";
 import { strikeLevel } from "@/lib/strikes";
 import { localParts, monthStart, nextMonthStart, toDbDate } from "@/lib/time";
@@ -62,7 +63,7 @@ export default function StudentsPage(props: PageProps<"/students">) {
 
 async function Header() {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
-  const { programs } = await getClassOptions();
+  const [{ programs }, sections] = await Promise.all([getClassOptions(), getSectionOptions()]);
   return (
     <PageHeader
       title="Students"
@@ -73,7 +74,7 @@ async function Header() {
             <Link href="/settings#import" className={buttonClass("secondary")}>
               <Upload className="size-4" aria-hidden /> Bulk import
             </Link>
-            <StudentDialog programs={programs} />
+            <StudentDialog programs={programs} sections={sections} />
           </>
         )
       }
@@ -117,9 +118,11 @@ async function Content({ searchParams }: { searchParams: SP }) {
 }
 
 async function SectionsOverview() {
+  const user = await requireUser(["ADMIN", "PRINCIPAL"]);
   const settings = await getSettings();
   const today = localParts(new Date(), settings.timezone).date;
-  const [groups, lates] = await Promise.all([
+  const [sections, groups, lates] = await Promise.all([
+    getSectionOptions(),
     prisma.student.groupBy({ by: ["section", "program"], where: { status: "ACTIVE" }, _count: { _all: true } }),
     prisma.$queryRaw<{ section: string; lates: bigint }[]>`
       SELECT s.section, COUNT(*) AS lates
@@ -129,57 +132,73 @@ async function SectionsOverview() {
     `,
   ]);
   const latesBySection = new Map(lates.map((l) => [l.section, Number(l.lates)]));
-  const sections = new Map<string, { count: number; programs: string[] }>();
+  const info = new Map<string, { count: number; programs: string[] }>();
   for (const g of groups) {
-    const entry = sections.get(g.section) ?? { count: 0, programs: [] };
+    const entry = info.get(g.section) ?? { count: 0, programs: [] };
     entry.count += g._count._all;
     entry.programs.push(g.program);
-    sections.set(g.section, entry);
+    info.set(g.section, entry);
   }
-  const list = [...sections.entries()].sort(([a], [b]) => compareSections(a, b));
-  if (list.length === 0) {
-    return (
-      <Card>
-        <EmptyState icon={<UserX className="size-5" />} title="No students yet">
-          Import the student list from Settings to get started.
-        </EmptyState>
-      </Card>
-    );
-  }
-  const total = list.reduce((sum, [, v]) => sum + v.count, 0);
+  const total = [...info.values()].reduce((sum, v) => sum + v.count, 0);
+  const groupsByYear = [
+    { key: "FIRST" as const, title: "1st year" },
+    { key: "SECOND" as const, title: "2nd year" },
+    { key: null, title: "Year not set" },
+  ]
+    .map((g) => ({ ...g, list: sections.filter((x) => x.year === g.key) }))
+    .filter((g) => g.list.length > 0);
+
   return (
-    <div>
-      <p className="mb-3 text-[13px] text-ink-2">
-        <span className="font-semibold text-ink tabular">{total.toLocaleString()}</span> active students in{" "}
-        <span className="font-semibold text-ink tabular">{list.length}</span> sections
-      </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {list.map(([section, info]) => {
-          const late = latesBySection.get(section) ?? 0;
-          return (
-            <Link key={section} href={`/students?section=${encodeURIComponent(section)}`} className="group">
-              <Card className="h-full p-4 transition-colors group-hover:border-line-strong">
-                <p className="text-lg font-semibold tracking-tight group-hover:underline">{section}</p>
-                <p className="mt-0.5 truncate text-[12px] text-muted" title={info.programs.join(", ")}>
-                  {info.programs.join(", ")}
-                </p>
-                <p className="mt-3 text-2xl font-semibold tabular">{info.count}</p>
-                <p className="text-[12px] text-muted">students</p>
-                {late > 0 && (
-                  <p className="mt-2 text-[12px] text-ink-2">
-                    <span className="font-medium tabular">{late}</span> late this month
-                  </p>
-                )}
-              </Card>
-            </Link>
-          );
-        })}
-      </div>
+    <div className="flex flex-col gap-5">
+      {can.administer(user.role) && <NewSectionForm />}
+      {sections.length === 0 ? (
+        <Card>
+          <EmptyState icon={<UserX className="size-5" />} title="No sections yet">
+            Add your first section above (for example CD1, 1st year), then add students to it.
+          </EmptyState>
+        </Card>
+      ) : (
+        <>
+          <p className="text-[13px] text-ink-2">
+            <span className="font-semibold text-ink tabular">{total.toLocaleString()}</span> active students in{" "}
+            <span className="font-semibold text-ink tabular">{sections.length}</span> sections
+          </p>
+          {groupsByYear.map((g) => (
+            <section key={g.title}>
+              <h2 className="mb-3 text-[13px] font-semibold tracking-wide text-muted uppercase">{g.title}</h2>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {g.list.map((sec) => {
+                  const i = info.get(sec.name);
+                  const late = latesBySection.get(sec.name) ?? 0;
+                  return (
+                    <Link key={sec.id} href={`/students?section=${encodeURIComponent(sec.name)}`} className="group">
+                      <Card className="h-full p-4 transition-colors group-hover:border-line-strong">
+                        <p className="text-lg font-semibold tracking-tight group-hover:underline">{sec.name}</p>
+                        <p className="mt-0.5 truncate text-[12px] text-muted" title={i?.programs.join(", ")}>
+                          {i?.programs.join(", ") || "No students yet"}
+                        </p>
+                        <p className="mt-3 text-2xl font-semibold tabular">{i?.count ?? 0}</p>
+                        <p className="text-[12px] text-muted">students</p>
+                        {late > 0 && (
+                          <p className="mt-2 text-[12px] text-ink-2">
+                            <span className="font-medium tabular">{late}</span> late this month
+                          </p>
+                        )}
+                      </Card>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </>
+      )}
     </div>
   );
 }
 
 async function StudentList({ sp }: { sp: Awaited<SP> }) {
+  const user = await requireUser(["ADMIN", "PRINCIPAL"]);
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).trim() : "");
   const q = str("q").slice(0, 100);
   const program = str("program");
@@ -210,7 +229,7 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
     }),
   };
 
-  const [students, total, classes] = await Promise.all([
+  const [students, total, classes, sectionRow] = await Promise.all([
     prisma.student.findMany({
       where,
       orderBy: [{ program: "asc" }, { section: "asc" }, { rollNo: "asc" }],
@@ -220,6 +239,7 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
     }),
     prisma.student.count({ where }),
     getClassOptions(),
+    section ? prisma.section.findUnique({ where: { name: section } }) : null,
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageHref = (p: number) => {
@@ -241,6 +261,8 @@ async function StudentList({ sp }: { sp: Awaited<SP> }) {
             <ArrowLeft className="size-4" aria-hidden /> All sections
           </Link>
           <h2 className="text-lg font-semibold">Section {section}</h2>
+          {sectionRow?.year && <Pill>{YEAR_LABELS[sectionRow.year]}</Pill>}
+          {sectionRow && can.administer(user.role) && <SectionSettings id={sectionRow.id} name={sectionRow.name} year={sectionRow.year} students={total} />}
         </div>
       )}
       <Card className="p-4">

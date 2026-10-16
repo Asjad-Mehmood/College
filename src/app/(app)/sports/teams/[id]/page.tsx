@@ -32,7 +32,6 @@ async function Team({ params }: { params: PageProps<"/sports/teams/[id]">["param
       where: { id },
       include: {
         sport: true,
-        house: true,
         event: true,
         members: { orderBy: [{ student: { section: "asc" } }, { rollNo: "asc" }], include: { student: { select: { fullName: true, section: true, photoUrl: true, parentPhone: true } } } },
         achievements: { orderBy: { achievedOn: "desc" }, include: { student: { select: { fullName: true } } } },
@@ -52,10 +51,9 @@ async function Team({ params }: { params: PageProps<"/sports/teams/[id]">["param
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="size-3 rounded-full" style={{ background: team.house.color }} aria-hidden />
-            <Pill tone="accent">{team.sport.name}</Pill>
+            <Pill tone="accent">{team.event.name}</Pill>
           </div>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">{team.house.name}</h1>
+          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">{team.sport.name}</h1>
           <p className="mt-0.5 text-sm text-ink-2">
             {selected} players · {team.members.length - selected} waitlisted or dropped
           </p>
@@ -88,7 +86,7 @@ async function Team({ params }: { params: PageProps<"/sports/teams/[id]">["param
           overrideNote: m.overrideNote,
           message: whatsAppLink(
             m.student.parentPhone,
-            `Respected Parent, ${m.student.fullName} has been selected for the ${team.house.name} ${team.sport.name} team at ${team.event.name}. Please contact the sports office. – ${settings.collegeName}`,
+            `Respected Parent, ${m.student.fullName} has been selected for the college ${team.sport.name} team for ${team.event.name}. Please contact the sports office. – ${settings.collegeName}`,
           ),
         }))}
       />

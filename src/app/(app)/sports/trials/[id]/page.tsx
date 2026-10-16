@@ -32,7 +32,7 @@ async function Trial({ params }: { params: PageProps<"/sports/trials/[id]">["par
   const trial = await prisma.trial.findUnique({
     where: { id },
     include: {
-      sport: { include: { teams: { orderBy: [{ event: { startDate: "desc" } }, { house: { name: "asc" } }], include: { event: true, house: true } } } },
+      sport: { include: { teams: { orderBy: { event: { startDate: "desc" } }, include: { event: true } } } },
       candidates: { orderBy: [{ student: { section: "asc" } }, { rollNo: "asc" }], include: { student: { select: { fullName: true, section: true, photoUrl: true } } } },
     },
   });
@@ -55,7 +55,7 @@ async function Trial({ params }: { params: PageProps<"/sports/trials/[id]">["par
         trialId={trial.id}
         editable={admin}
         sections={sections}
-        teams={trial.sport.teams.map((t) => ({ id: t.id, label: `${t.event.name} · ${t.house.name}` }))}
+        teams={trial.sport.teams.map((t) => ({ id: t.id, label: t.event.name }))}
         candidates={trial.candidates.map((c) => ({
           id: c.id,
           fullName: c.student.fullName,

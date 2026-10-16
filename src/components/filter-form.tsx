@@ -10,6 +10,7 @@ import { useRef, type ReactNode } from "react";
 export function FilterForm({ action, children, className }: { action: string; children: ReactNode; className?: string }) {
   const router = useRouter();
   const ref = useRef<HTMLFormElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   function go() {
     const form = ref.current;
@@ -32,8 +33,10 @@ export function FilterForm({ action, children, className }: { action: string; ch
         go();
       }}
       onChange={(e) => {
-        // Search text applies on Enter; everything else applies immediately.
-        if ((e.target as unknown as HTMLInputElement).type !== "search") go();
+        // Search text applies shortly after typing stops; everything else immediately.
+        clearTimeout(timer.current);
+        if ((e.target as unknown as HTMLInputElement).type === "search") timer.current = setTimeout(go, 350);
+        else go();
       }}
     >
       {children}

@@ -6,6 +6,7 @@ import type { ConsentStatus, TripType } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth";
 import { TRIP_TYPE_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
+import { resolveRoll } from "@/lib/student-lookup";
 import { getSettings } from "@/lib/settings";
 import { isValidYmd, localParts, toDbDate } from "@/lib/time";
 import { compareSections } from "@/lib/sections";
@@ -155,7 +156,7 @@ export async function checkStudentForTrip(tripId: number, rawRoll: string): Prom
   if (!rollNo) return { ok: false, message: "Enter a roll number." };
   const ctx = await loadForEnrolment(tripId);
   if (!ctx) return { ok: false, message: "Trip not found." };
-  const student = await prisma.student.findFirst({ where: { rollNo: { equals: rollNo, mode: "insensitive" } } });
+  const student = await prisma.student.findFirst({ where: { rollNo: { equals: (await resolveRoll(rollNo)) ?? rollNo, mode: "insensitive" } } });
   if (!student) return { ok: false, message: `No student found with roll number “${rollNo}”.` };
   return {
     ok: true,

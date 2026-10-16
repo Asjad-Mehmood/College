@@ -2,31 +2,22 @@
 
 import { useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { Button, Card, CardHeader, FormMessage, Select, cx } from "@/components/ui";
+import { Button, Card, CardHeader, FormMessage, Select } from "@/components/ui";
 import { addSportToEvent, deleteEvent, removeSportFromEvent, type FormState } from "../../actions";
 
-export function AddSport({
-  eventId,
-  sports,
-  houses,
-}: {
-  eventId: number;
-  sports: { id: number; name: string }[];
-  houses: { id: number; name: string; color: string }[];
-}) {
+export function AddSport({ eventId, sports }: { eventId: number; sports: { id: number; name: string }[] }) {
   const [sportId, setSportId] = useState("");
-  const [chosen, setChosen] = useState<Set<number>>(new Set(houses.map((h) => h.id)));
   const [state, setState] = useState<FormState>(null);
   const [pending, start] = useTransition();
   return (
     <Card>
-      <CardHeader title="Add a sport to this event" description="A team is created for each house you tick; then pick its players." />
+      <CardHeader title="Add a sport to this event" description="Then open it to pick the players from the whole college." />
       <form
-        className="flex flex-col gap-4 p-5"
+        className="flex flex-col gap-3 p-5"
         onSubmit={(e) => {
           e.preventDefault();
           start(async () => {
-            const res = await addSportToEvent(eventId, Number(sportId), [...chosen]);
+            const res = await addSportToEvent(eventId, Number(sportId));
             setState(res);
             if (res?.ok) setSportId("");
           });
@@ -43,27 +34,6 @@ export function AddSport({
               </option>
             ))}
           </Select>
-          <div className="flex flex-wrap gap-2">
-            {houses.map((h) => (
-              <label key={h.id} className={cx("inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-[13px] select-none", chosen.has(h.id) ? "border-accent/50 bg-accent-soft text-accent-ink" : "border-line text-ink-2")}>
-                <input
-                  type="checkbox"
-                  checked={chosen.has(h.id)}
-                  onChange={(e) =>
-                    setChosen((c) => {
-                      const next = new Set(c);
-                      if (e.target.checked) next.add(h.id);
-                      else next.delete(h.id);
-                      return next;
-                    })
-                  }
-                  className="accent-[var(--accent)]"
-                />
-                <span className="size-2.5 rounded-full" style={{ background: h.color }} aria-hidden />
-                {h.name}
-              </label>
-            ))}
-          </div>
           <Button type="submit" variant="primary" disabled={pending || !sportId}>
             <Plus className="size-4" aria-hidden /> Add sport
           </Button>
@@ -79,7 +49,7 @@ export function RemoveSport({ eventId, sportId, name }: { eventId: number; sport
   const [pending, start] = useTransition();
   return confirm ? (
     <span className="flex items-center gap-2 text-[12px] text-danger-ink">
-      Remove {name} and its squads?
+      Remove {name} and its players?
       <Button size="sm" variant="ghost" onClick={() => setConfirm(false)}>
         Keep
       </Button>
@@ -99,7 +69,7 @@ export function DeleteEvent({ id }: { id: number }) {
   const [pending, start] = useTransition();
   return confirm ? (
     <span className="flex items-center gap-2 rounded-lg bg-critical/5 px-3 py-1.5 text-[13px] text-danger-ink">
-      Delete this event and all its squads?
+      Delete this event and all its players?
       <Button size="sm" variant="ghost" onClick={() => setConfirm(false)}>
         Keep
       </Button>

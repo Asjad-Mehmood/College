@@ -79,6 +79,11 @@ async function main() {
     );
   }
 
+  await prisma.section.createMany({
+    data: PROGRAMS.flatMap((p) => p.sections.map((name, i) => ({ name, year: i % 2 === 0 ? ("FIRST" as const) : ("SECOND" as const) }))),
+    skipDuplicates: true,
+  });
+
   const students = [];
   let n = 100;
   for (const program of PROGRAMS) {

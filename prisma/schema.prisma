@@ -89,6 +89,11 @@ enum ConsentStatus {
   REFUSED
 }
 
+enum StudyYear {
+  FIRST
+  SECOND
+}
+
 enum MemberStatus {
   SELECTED
   WAITLIST
@@ -410,39 +415,21 @@ model SportsEvent {
   @@map("sports_events")
 }
 
-// A college house (Red House, Jinnah House…). Students are picked into a
-// house's team per sport; there is no fixed house membership.
-model House {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(60)
-  // Hex colour such as #d03b3b, used for the house badge.
-  color     String   @default("#2a78d6") @db.VarChar(9)
-  inCharge  String?  @map("in_charge") @db.VarChar(100)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-
-  teams Team[]
-
-  @@map("houses")
-}
-
-// One house's team in one sport of one event.
+// The college's team in one sport of one event.
 model Team {
   id        Int      @id @default(autoincrement())
   eventId   Int      @map("event_id")
   sportId   Int      @map("sport_id")
-  houseId   Int      @map("house_id")
-  // Team manager / coach for this house in this sport.
+  // Team manager / coach.
   manager   String?  @db.VarChar(100)
   createdAt DateTime @default(now()) @map("created_at")
 
   event        SportsEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   sport        Sport         @relation(fields: [sportId], references: [id])
-  house        House         @relation(fields: [houseId], references: [id])
   members      TeamMember[]
   achievements Achievement[]
 
-  @@unique([eventId, sportId, houseId])
+  @@unique([eventId, sportId])
   @@map("teams")
 }
 
@@ -515,4 +502,14 @@ model Achievement {
 
   @@index([rollNo])
   @@map("achievements")
+}
+
+// A class section (CD1, CD 54…). Created first, then students are placed in it.
+model Section {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique @db.VarChar(20)
+  year      StudyYear?
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@map("sections")
 }

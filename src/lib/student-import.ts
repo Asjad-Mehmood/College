@@ -111,6 +111,8 @@ export async function importStudents(file: File): Promise<ImportReport> {
   }
 
   const records = [...valid.values()];
+  // Sections named in the file are created if they don't exist yet (year can be set later).
+  await prisma.section.createMany({ data: [...new Set(records.map((r) => (r.section ?? "").slice(0, 20)))].map((name) => ({ name })), skipDuplicates: true });
   const existing = new Set(
     (
       await prisma.student.findMany({

@@ -8,6 +8,7 @@ import { parentLateMessage, smsLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { strikeLevel, type StrikeLevel } from "@/lib/strikes";
+import { resolveRoll } from "@/lib/student-lookup";
 import {
   formatMinutes,
   localParts,
@@ -77,7 +78,7 @@ export async function lookupStudent(rawRoll: string): Promise<LookupResult> {
 
   const settings = await getSettings();
   const student = await prisma.student.findFirst({
-    where: { rollNo: { equals: rollNo, mode: "insensitive" } },
+    where: { rollNo: { equals: (await resolveRoll(rollNo)) ?? rollNo, mode: "insensitive" } },
     select: studentSelect,
   });
 

@@ -18,7 +18,7 @@ export type StudentFields = {
   status: string;
 };
 
-export function StudentDialog({ student, programs }: { student?: StudentFields; programs: string[] }) {
+export function StudentDialog({ student, programs, sections }: { student?: StudentFields; programs: string[]; sections: { name: string; year: "FIRST" | "SECOND" | null }[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const editing = !!student;
   const [state, onSubmit, pending] = useFormAction(saveStudent, null, { resetOnSuccess: !editing });
@@ -66,8 +66,26 @@ export function StudentDialog({ student, programs }: { student?: StudentFields; 
                 ))}
               </datalist>
             </Field>
-            <Field label="Year / section *">
-              <Input name="section" required maxLength={20} defaultValue={student?.section} placeholder="e.g. 1st Year - A" />
+            <Field label="Section *" hint={sections.length === 0 ? "Create a section first (Students → By section)." : undefined}>
+              <Select name="section" required defaultValue={student?.section ?? ""}>
+                <option value="" disabled>
+                  Choose a section…
+                </option>
+                {(["FIRST", "SECOND", null] as const).map((y) => {
+                  const list = sections.filter((x) => x.year === y);
+                  if (list.length === 0) return null;
+                  return (
+                    <optgroup key={y ?? "none"} label={y === "FIRST" ? "1st year" : y === "SECOND" ? "2nd year" : "Year not set"}>
+                      {list.map((x) => (
+                        <option key={x.name} value={x.name}>
+                          {x.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
+                {student && !sections.some((x) => x.name === student.section) && <option value={student.section}>{student.section}</option>}
+              </Select>
             </Field>
             <Field label="Parent phone *" hint="Used for WhatsApp / SMS alerts">
               <Input name="parentPhone" type="tel" required maxLength={20} defaultValue={student?.parentPhone} placeholder="03XX XXXXXXX" />

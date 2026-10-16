@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { VIOLATION_ACTION_LABELS } from "@/lib/labels";
 import { smsLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
+import { resolveRoll } from "@/lib/student-lookup";
 import { getSettings } from "@/lib/settings";
 import { formatDate, isValidYmd, localParts, toDbDate } from "@/lib/time";
 import { violationParentMessage } from "@/lib/violations";
@@ -34,7 +35,7 @@ export async function findStudentForViolation(rawRoll: string): Promise<FindStud
   if (!rollNo) return { ok: false, error: "Enter a roll number.", suggestions: [] };
 
   const student = await prisma.student.findFirst({
-    where: { rollNo: { equals: rollNo, mode: "insensitive" } },
+    where: { rollNo: { equals: (await resolveRoll(rollNo)) ?? rollNo, mode: "insensitive" } },
     include: {
       violations: {
         orderBy: { incidentDate: "desc" },
