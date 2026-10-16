@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Pencil, Plus } from "lucide-react";
 import type { Severity } from "@/generated/prisma/enums";
-import { Button, FormMessage, Input, Pill, Select, StrikeBadge, cx, inputClass } from "@/components/ui";
+import { Button, FormMessage, Input, Pill, Select, StrikeBadge, cx, fieldClass } from "@/components/ui";
+import { useFormAction } from "@/components/use-form-action";
 import { SEVERITY_LABELS, SEVERITY_LEVEL } from "@/lib/labels";
 import { saveViolationType, setViolationTypeActive, type SettingsState } from "./actions";
 
@@ -57,13 +58,17 @@ function TypeItem({ type: t, onEdit }: { type: TypeRow; onEdit: () => void }) {
 }
 
 function TypeForm({ type, onDone }: { type?: TypeRow; onDone?: () => void }) {
-  const [state, action, pending] = useActionState<SettingsState, FormData>(async (prev, fd) => {
-    const res = await saveViolationType(prev, fd);
-    if (res?.ok) onDone?.();
-    return res;
-  }, null);
+  const [state, onSubmit, pending] = useFormAction<SettingsState>(
+    async (prev, fd) => {
+      const res = await saveViolationType(prev, fd);
+      if (res?.ok) onDone?.();
+      return res;
+    },
+    null,
+    { resetOnSuccess: !type },
+  );
   return (
-    <form action={action} className="flex flex-col gap-2">
+    <form onSubmit={onSubmit} className="flex flex-col gap-2">
       {type && <input type="hidden" name="id" value={type.id} />}
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_7rem_auto]">
         <Input name="name" required maxLength={80} defaultValue={type?.name} placeholder="e.g. Mobile phone in class" aria-label="Violation name" />
@@ -81,7 +86,7 @@ function TypeForm({ type, onDone }: { type?: TypeRow; onDone?: () => void }) {
             step={50}
             defaultValue={type?.defaultFineAmount ?? 0}
             aria-label="Default fine"
-            className={cx(inputClass, "pl-10")}
+            className={fieldClass("pl-10")}
           />
         </div>
         <div className="flex gap-2">

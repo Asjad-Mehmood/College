@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import type { LateReason } from "@/generated/prisma/enums";
-import { Avatar, Button, Card, StrikeBadge, cx, inputClass } from "@/components/ui";
+import { Avatar, Button, Card, StrikeBadge, cx, fieldClass } from "@/components/ui";
 import { REASONS } from "@/lib/labels";
 import { STRIKE_GUIDANCE, STRIKE_LABELS, ordinal } from "@/lib/strikes";
 import {
@@ -169,7 +169,7 @@ export function GateConsole() {
               inputMode="text"
               aria-label="Roll number"
               placeholder="Type roll number"
-              className={cx(inputClass, "h-14 rounded-xl pl-12 font-mono text-lg tracking-wide uppercase placeholder:font-sans placeholder:normal-case placeholder:tracking-normal")}
+              className={fieldClass("h-14 rounded-xl pl-12 font-mono text-lg tracking-wide uppercase placeholder:font-sans placeholder:normal-case placeholder:tracking-normal")}
             />
           </div>
           <Button type="submit" variant="primary" size="lg" disabled={looking || !roll.trim()} className="px-5">
@@ -274,7 +274,7 @@ export function GateConsole() {
                       onChange={(e) => setFineAmount(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
                       aria-label="Fine amount in rupees"
-                      className={cx(inputClass, "h-8 w-24 tabular")}
+                      className={fieldClass("h-8 w-24 tabular")}
                     />
                   </div>
                 )}
@@ -297,7 +297,7 @@ export function GateConsole() {
                 onChange={(e) => setRemarks(e.target.value)}
                 rows={2}
                 maxLength={500}
-                className={cx(inputClass, "mt-2 h-auto py-2")}
+                className={fieldClass("mt-2 h-auto py-2")}
                 placeholder="e.g. Came with father, bus broke down"
               />
             </details>

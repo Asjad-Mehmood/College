@@ -1,6 +1,9 @@
 import type { StrikeLevel } from "@/lib/strikes";
 import type {
   CaseStatus,
+  ConsentStatus,
+  TripStatus,
+  TripType,
   DisciplineAction,
   LateReason,
   Role,
@@ -69,4 +72,27 @@ export const VIOLATION_ACTION_LABELS: Record<ViolationAction, string> = {
 export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
   OPEN: "Open",
   CLOSED: "Closed",
+};
+
+export const TRIP_TYPE_LABELS: Record<TripType, string> = {
+  STUDY_TOUR: "Study tour",
+  INDUSTRIAL_VISIT: "Industrial visit",
+  SPORTS: "Sports event",
+  COMPETITION: "Competition",
+  RECREATIONAL: "Recreational trip",
+  OTHER: "Other",
+};
+
+export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {
+  OPEN: "Registration open",
+  CLOSED: "Registration closed",
+  DEPARTED: "On the trip",
+  RETURNED: "Returned",
+  CANCELLED: "Cancelled",
+};
+
+export const CONSENT_LABELS: Record<ConsentStatus, string> = {
+  PENDING: "Pending",
+  RECEIVED: "Received",
+  REFUSED: "Refused",
 };

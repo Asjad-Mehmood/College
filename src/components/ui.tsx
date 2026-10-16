@@ -117,18 +117,28 @@ export const inputClass = cx(
   "disabled:opacity-60",
 );
 
+/**
+ * Input styling plus extra classes. A fixed width in the extras (e.g. "w-24")
+ * replaces the default full width instead of fighting it.
+ */
+export function fieldClass(...extra: (string | false | null | undefined)[]) {
+  const more = cx(...extra);
+  const fixedWidth = /(^|\s)w-/.test(more);
+  return cx(fixedWidth ? inputClass.replace(/(^|\s)w-full(?=\s|$)/, " ") : inputClass, more);
+}
+
 export function Input({ className, ...props }: ComponentProps<"input">) {
-  return <input className={cx(inputClass, className)} {...props} />;
+  return <input className={fieldClass(className)} {...props} />;
 }
 
 export function Select({ className, ...props }: ComponentProps<"select">) {
-  return <select className={cx(inputClass, "pr-8", className)} {...props} />;
+  return <select className={fieldClass("pr-8", className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
   return (
     <textarea
-      className={cx(inputClass, "h-auto min-h-20 py-2 leading-relaxed", className)}
+      className={fieldClass("h-auto min-h-20 py-2 leading-relaxed", className)}
       {...props}
     />
   );

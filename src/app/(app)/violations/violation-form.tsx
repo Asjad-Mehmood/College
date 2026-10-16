@@ -26,8 +26,7 @@ import {
   StrikeBadge,
   Textarea,
   buttonClass,
-  cx,
-  inputClass,
+  fieldClass,
 } from "@/components/ui";
 import { SEVERITY_LABELS, SEVERITY_LEVEL, VIOLATION_ACTION_LABELS } from "@/lib/labels";
 import {
@@ -221,7 +220,7 @@ function StudentLookup({
               spellCheck={false}
               aria-label="Roll number"
               placeholder="Roll number"
-              className={cx(inputClass, "h-12 pl-10 font-mono tracking-wide uppercase placeholder:font-sans placeholder:normal-case placeholder:tracking-normal")}
+              className={fieldClass("h-12 pl-10 font-mono tracking-wide uppercase placeholder:font-sans placeholder:normal-case placeholder:tracking-normal")}
             />
           </div>
           <Button type="submit" variant="primary" disabled={pending || !roll.trim()} className="h-12 px-5">

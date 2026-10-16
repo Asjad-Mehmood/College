@@ -66,6 +66,34 @@ enum CaseStatus {
   CLOSED
 }
 
+enum TripType {
+  STUDY_TOUR
+  INDUSTRIAL_VISIT
+  SPORTS
+  COMPETITION
+  RECREATIONAL
+  OTHER
+}
+
+enum TripStatus {
+  OPEN // accepting students
+  CLOSED // registration closed, preparing to leave
+  DEPARTED // on the trip
+  RETURNED
+  CANCELLED
+}
+
+enum ConsentStatus {
+  PENDING
+  RECEIVED
+  REFUSED
+}
+
+enum ParticipantStatus {
+  REGISTERED
+  WITHDRAWN
+}
+
 model Student {
   rollNo       String        @id @map("roll_no") @db.VarChar(20)
   fullName     String        @map("full_name") @db.VarChar(100)
@@ -81,6 +109,7 @@ model Student {
 
   lateRecords LateRecord[]
   violations  Violation[]
+  trips       TripParticipant[]
 
   @@index([program, section])
   @@map("students")
@@ -125,6 +154,7 @@ model User {
   sessions    Session[]
   lateRecords LateRecord[]
   violations  Violation[]
+  trips       Trip[]
 
   @@map("users")
 }
@@ -210,4 +240,103 @@ model Violation {
   @@index([rollNo])
   @@index([status])
   @@map("violations")
+}
+
+model Trip {
+  id              Int        @id @default(autoincrement())
+  title           String     @db.VarChar(120)
+  type            TripType   @default(STUDY_TOUR)
+  destination     String     @db.VarChar(150)
+  purpose         String?
+  itinerary       String?
+  // College-local dates and "HH:MM" times.
+  departDate      DateTime   @map("depart_date") @db.Date
+  departTime      String     @map("depart_time") @db.VarChar(5)
+  returnDate      DateTime   @map("return_date") @db.Date
+  returnTime      String     @map("return_time") @db.VarChar(5)
+  meetingPoint    String?    @map("meeting_point") @db.VarChar(150)
+  // Empty = open to every program.
+  programs        String[]
+  seats           Int?
+  feeAmount       Decimal    @default(0) @map("fee_amount") @db.Decimal(8, 2)
+  feeDeadline     DateTime?  @map("fee_deadline") @db.Date
+  consentDeadline DateTime?  @map("consent_deadline") @db.Date
+  inChargeName    String     @map("in_charge_name") @db.VarChar(100)
+  inChargePhone   String?    @map("in_charge_phone") @db.VarChar(20)
+  status          TripStatus @default(OPEN)
+  departedAt      DateTime?  @map("departed_at") @db.Timestamptz(3)
+  departureNote   String?    @map("departure_note") @db.VarChar(300)
+  returnedAt      DateTime?  @map("returned_at") @db.Timestamptz(3)
+  returnNote      String?    @map("return_note") @db.VarChar(300)
+  cancelReason    String?    @map("cancel_reason") @db.VarChar(300)
+  createdById     Int        @map("created_by")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  createdBy    User              @relation(fields: [createdById], references: [id])
+  staff        TripStaff[]
+  vehicles     TripVehicle[]
+  participants TripParticipant[]
+
+  @@index([departDate])
+  @@index([status])
+  @@map("trips")
+}
+
+// Teachers and staff travelling with the students.
+model TripStaff {
+  id     Int     @id @default(autoincrement())
+  tripId Int     @map("trip_id")
+  name   String  @db.VarChar(100)
+  phone  String? @db.VarChar(20)
+  role   String  @db.VarChar(40)
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("trip_staff")
+}
+
+model TripVehicle {
+  id          Int     @id @default(autoincrement())
+  tripId      Int     @map("trip_id")
+  name        String  @db.VarChar(60)
+  driverName  String? @map("driver_name") @db.VarChar(100)
+  driverPhone String? @map("driver_phone") @db.VarChar(20)
+  seats       Int?
+
+  trip         Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  participants TripParticipant[]
+
+  @@index([tripId])
+  @@map("trip_vehicles")
+}
+
+model TripParticipant {
+  id             Int               @id @default(autoincrement())
+  tripId         Int               @map("trip_id")
+  rollNo         String            @map("roll_no") @db.VarChar(20)
+  status         ParticipantStatus @default(REGISTERED)
+  consent        ConsentStatus     @default(PENDING)
+  consentAt      DateTime?         @map("consent_at") @db.Date
+  feePaid        Decimal           @default(0) @map("fee_paid") @db.Decimal(8, 2)
+  feePaidAt      DateTime?         @map("fee_paid_at") @db.Date
+  receiptNo      String?           @map("receipt_no") @db.VarChar(30)
+  medicalNotes   String?           @map("medical_notes") @db.VarChar(300)
+  // Null means the parent's phone from the student record.
+  emergencyPhone String?           @map("emergency_phone") @db.VarChar(20)
+  vehicleId      Int?              @map("vehicle_id")
+  departedAt     DateTime?         @map("departed_at") @db.Timestamptz(3)
+  returnedAt     DateTime?         @map("returned_at") @db.Timestamptz(3)
+  // Enrolled despite a discipline warning (open severe violation).
+  overrideNote   String?           @map("override_note") @db.VarChar(200)
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  trip    Trip         @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  student Student      @relation(fields: [rollNo], references: [rollNo], onUpdate: Cascade)
+  vehicle TripVehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@unique([tripId, rollNo])
+  @@index([rollNo])
+  @@map("trip_participants")
 }

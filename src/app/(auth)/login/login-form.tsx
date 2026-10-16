@@ -1,15 +1,15 @@
 "use client";
 
-import { useActionState } from "react";
 import { LogIn } from "lucide-react";
 import { Button, Card, Field, FormMessage, Input } from "@/components/ui";
+import { useFormAction } from "@/components/use-form-action";
 import { login } from "../actions";
 
 export function LoginForm() {
-  const [state, action, pending] = useActionState(login, null);
+  const [state, onSubmit, pending] = useFormAction(login, null);
   return (
     <Card className="p-6">
-      <form action={action} className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <div>
           <h1 className="text-lg font-semibold">Sign in</h1>
           <p className="text-[13px] text-muted">Use the account given by the Discipline In-Charge.</p>

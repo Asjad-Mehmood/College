@@ -1,14 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
 import { Button, Card, Field, FormMessage, Input } from "@/components/ui";
+import { useFormAction } from "@/components/use-form-action";
 import { setupAdmin } from "../actions";
 
 export function SetupForm() {
-  const [state, action, pending] = useActionState(setupAdmin, null);
+  const [state, onSubmit, pending] = useFormAction(setupAdmin, null);
   return (
     <Card className="p-6">
-      <form action={action} className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <div>
           <h1 className="text-lg font-semibold">Set up the portal</h1>
           <p className="text-[13px] text-muted">

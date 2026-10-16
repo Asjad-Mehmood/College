@@ -1,8 +1,7 @@
 # Campus Portal
 
-Discipline and student-affairs management for the college. Modules so far: **late arrivals** (gate check-in and
-the Discipline Office) and **discipline violations**. Further modules, such as trip management, will be added as their
-own sections.
+Discipline and student-affairs management for the college. Modules: **late arrivals** (gate check-in and the
+Discipline Office), **discipline violations** and **trips**. New modules get their own section in the sidebar.
 
 The product name lives in `src/lib/app.ts`. The college's own name is set in Settings.
 
@@ -17,6 +16,7 @@ Built with Next.js 16, Prisma 7 and Neon Postgres, and deployed on Vercel.
 | **Late records** (`/records`) | In-Charge, Principal | **By month:** a calendar of the month with each day's count (darker = more); pick a month, click a date to see that day's records, then print or export them. **Search & filter:** ledger filtered by date range, program, section, strike level, habitual offenders or unpaid fines. Exports to Excel or CSV and prints to PDF. |
 | **Record violation** (`/violations/new`) | In-Charge | Find the student by roll number (shows past violations), choose the violation type (sets severity and suggested fine), enter date, time, place, what happened and who reported it, then the action taken (warning, fine, parent meeting, suspension with days, referral to the Discipline Committee). Then message the parent and print a notice. |
 | **Violation register** (`/violations`, `/violations/[id]`) | In-Charge, Principal | The same **By month** calendar to open the cases of any date, plus search and filters (date range, type, severity, program, section, open/closed, unpaid fines), Excel/CSV export and print. Each case page shows the full details and the student's other cases. The In-Charge can mark the fine paid, close the case with a note, reopen, edit or delete it. Printable parent notice on the letterhead, with an acknowledgement slip. |
+| **Trips** (`/trips`, `/trips/[id]`) | In-Charge manages; Principal views | Plan a trip (type, destination, dates and times, meeting point, programs allowed, seats, fee and deadlines, teacher in charge, itinerary) and add accompanying staff. **Students:** add by roll number or a whole class; blocked if the class isn't eligible, seats are full or the student isn't active; students with an open severe violation need a written reason to be added. Track parent consent and fee paid (with receipt no.), medical notes and emergency phone; send trip notice, consent and fee reminders on WhatsApp. **Transport:** vehicles with driver and seats, seat assignment and auto-assign. **Roll call** on a phone at departure and on return, with a missing list; leaving or closing the trip with anyone unmarked needs a note. Printable parent permission slips, student list and bus lists; Excel export. |
 | **Students** (`/students`, `/students/[roll]`) | In-Charge, Principal | Student directory and discipline profile: late arrivals and violations, unpaid fines from both, call/WhatsApp buttons and a printable warning letter. |
 | **Settings** (`/settings`) | In-Charge | Summer/winter timing switch, grace period, escalation thresholds, default fine, violation types (name, severity, default fine, active), Excel/CSV student import and staff accounts. |
 

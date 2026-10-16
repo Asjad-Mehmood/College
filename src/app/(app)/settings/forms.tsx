@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { FileSpreadsheet, KeyRound, Snowflake, Sun, UploadCloud, UserPlus } from "lucide-react";
 import type { Role } from "@/generated/prisma/enums";
-import { Button, Field, FormMessage, Input, Pill, Select, cx, inputClass } from "@/components/ui";
+import { Button, Field, FormMessage, Input, Pill, Select, cx, fieldClass } from "@/components/ui";
+import { useFormAction } from "@/components/use-form-action";
 import type { ImportReport } from "@/lib/student-import";
 import { ROLE_LABELS } from "@/lib/labels";
 import {
@@ -68,9 +69,9 @@ export function ScheduleToggle({ schedule, summer, winter }: { schedule: "SUMMER
 }
 
 export function SettingsForm({ values }: { values: SettingsValues }) {
-  const [state, action, pending] = useActionState<SettingsState, FormData>(saveSettings, null);
+  const [state, onSubmit, pending] = useFormAction<SettingsState>(saveSettings, null);
   return (
-    <form action={action} className="flex flex-col gap-5">
+    <form onSubmit={onSubmit} className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="College name" className="sm:col-span-2">
           <Input name="collegeName" required maxLength={150} defaultValue={values.collegeName} />
@@ -125,13 +126,21 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
 }
 
 export function ImportForm() {
-  const [report, action, pending] = useActionState<ImportReport | null, FormData>(uploadStudents, null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [report, onSubmit, pending] = useFormAction<ImportReport | null>(
+    async (prev, fd) => {
+      const res = await uploadStudents(prev, fd);
+      if (res.ok) setFileName(null);
+      return res;
+    },
+    null,
+    { resetOnSuccess: true },
+  );
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <label
         onDragOver={(e) => {
           e.preventDefault();
@@ -210,9 +219,9 @@ export function ImportForm() {
 }
 
 export function NewUserForm() {
-  const [state, action, pending] = useActionState<SettingsState, FormData>(createUser, null);
+  const [state, onSubmit, pending] = useFormAction<SettingsState>(createUser, null, { resetOnSuccess: true });
   return (
-    <form action={action} className="grid gap-3 sm:grid-cols-2">
+    <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
       <Field label="Full name">
         <Input name="fullName" required maxLength={100} />
       </Field>
@@ -274,7 +283,7 @@ export function UserRowActions({ userId, active, isSelf }: { userId: number; act
           required
           autoFocus
           autoComplete="new-password"
-          className={cx(inputClass, "h-8 w-40")}
+          className={fieldClass("h-8 w-40")}
         />
         <Button size="sm" variant="primary" type="submit" disabled={pending}>
           Save

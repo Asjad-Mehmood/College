@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Bus,
   ClipboardList,
   DoorOpen,
   FilePlus2,
   LayoutDashboard,
+  MapPinPlus,
   LogOut,
   Menu,
   Settings,
@@ -43,6 +45,13 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
     items: [
       { href: "/violations/new", label: "Record violation", short: "Record", icon: FilePlus2, roles: ["ADMIN"] },
       { href: "/violations", label: "Violation register", short: "Violations", icon: ShieldAlert, roles: ADMIN_VIEW, mobile: true },
+    ],
+  },
+  {
+    title: "Trips",
+    items: [
+      { href: "/trips/new", label: "Plan a trip", short: "Plan", icon: MapPinPlus, roles: ["ADMIN"] },
+      { href: "/trips", label: "All trips", short: "Trips", icon: Bus, roles: ADMIN_VIEW },
     ],
   },
   {

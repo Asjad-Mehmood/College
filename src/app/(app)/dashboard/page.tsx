@@ -5,6 +5,7 @@ import {
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
+  Bus,
   Banknote,
   CalendarDays,
   Clock,
@@ -55,6 +56,9 @@ export default function DashboardPage() {
       </Suspense>
       <Suspense fallback={<Skeleton className="mt-5 h-64 rounded-2xl" />}>
         <ViolationsPanel />
+      </Suspense>
+      <Suspense fallback={<Skeleton className="mt-5 h-40 rounded-2xl" />}>
+        <TripsPanel />
       </Suspense>
     </div>
   );
@@ -355,6 +359,54 @@ async function Dashboard() {
         </Card>
       </div>
     </div>
+  );
+}
+
+async function TripsPanel() {
+  await requireUser(["ADMIN", "PRINCIPAL"]);
+  const trips = await prisma.trip.findMany({
+    where: { status: { in: ["OPEN", "CLOSED", "DEPARTED"] } },
+    orderBy: [{ departDate: "asc" }],
+    take: 4,
+    include: { participants: { where: { status: "REGISTERED" }, select: { consent: true, feePaid: true } } },
+  });
+  return (
+    <Card className="mt-5">
+      <CardHeader
+        title="Trips"
+        description={trips.length ? "Upcoming and in progress" : undefined}
+        actions={
+          <Link href="/trips" className="inline-flex items-center gap-1 text-[13px] font-medium text-accent-ink hover:underline">
+            All trips <ArrowRight className="size-3.5" aria-hidden />
+          </Link>
+        }
+      />
+      {trips.length === 0 ? (
+        <EmptyState icon={<Bus className="size-5" />} title="No upcoming trips" />
+      ) : (
+        <ul className="divide-y divide-line">
+          {trips.map((t) => {
+            const pending = t.participants.filter((p) => p.consent !== "RECEIVED").length;
+            return (
+              <li key={t.id}>
+                <Link href={`/trips/${t.id}`} className="flex flex-wrap items-center gap-3 px-5 py-3 hover:bg-surface-2/50">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{t.title}</span>
+                    <span className="block truncate text-[12px] text-muted">
+                      {formatDate(fromDbDate(t.departDate), { weekday: true })} · {t.destination}
+                    </span>
+                  </span>
+                  <span className="text-[12px] text-ink-2 tabular">
+                    {t.participants.length} students{pending > 0 && ` · ${pending} consent pending`}
+                  </span>
+                  {t.status === "DEPARTED" && <span className="text-[12px] font-medium text-accent-ink">On the trip</span>}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
   );
 }
 

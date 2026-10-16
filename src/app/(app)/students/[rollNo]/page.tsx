@@ -64,6 +64,10 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
   const student = await prisma.student.findUnique({
     where: { rollNo },
     include: {
+      trips: {
+        orderBy: { trip: { departDate: "desc" } },
+        include: { trip: { select: { id: true, title: true, destination: true, departDate: true, status: true, feeAmount: true } } },
+      },
       violations: {
         orderBy: [{ incidentDate: "desc" }, { createdAt: "desc" }],
         include: { type: { select: { name: true } } },
@@ -337,7 +341,57 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
           </Table>
         )}
       </Card>
+
+      <TripsCard trips={student.trips} />
     </div>
+  );
+}
+
+function TripsCard({
+  trips,
+}: {
+  trips: {
+    id: number;
+    status: string;
+    consent: string;
+    feePaid: unknown;
+    departedAt: Date | null;
+    trip: { id: number; title: string; destination: string; departDate: Date; status: string; feeAmount: unknown };
+  }[];
+}) {
+  if (trips.length === 0) return null;
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader title="Trips" description="Trips this student registered for." />
+      <ul className="divide-y divide-line">
+        {trips.map((p) => {
+          const fee = Number(p.trip.feeAmount);
+          return (
+            <li key={p.id}>
+              <Link href={`/trips/${p.trip.id}`} className="flex flex-wrap items-center gap-3 px-5 py-3 hover:bg-surface-2/50">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{p.trip.title}</span>
+                  <span className="block truncate text-[12px] text-muted">
+                    {formatDate(fromDbDate(p.trip.departDate))} · {p.trip.destination}
+                  </span>
+                </span>
+                {p.status === "WITHDRAWN" ? (
+                  <Pill>Withdrawn</Pill>
+                ) : (
+                  <>
+                    <Pill tone={p.consent === "RECEIVED" ? "good" : p.consent === "REFUSED" ? "critical" : "warning"}>
+                      Consent {p.consent.toLowerCase()}
+                    </Pill>
+                    {fee > 0 && <Pill tone={Number(p.feePaid) >= fee ? "good" : "critical"}>{Number(p.feePaid) >= fee ? "Fee paid" : "Fee due"}</Pill>}
+                    {p.trip.status === "RETURNED" && <Pill>{p.departedAt ? "Went" : "Did not go"}</Pill>}
+                  </>
+                )}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
 

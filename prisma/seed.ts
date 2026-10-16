@@ -100,6 +100,7 @@ async function main() {
   await prisma.student.createMany({ data: students, skipDuplicates: true });
 
   await seedViolations(students.map((s) => s.rollNo), created[0].id);
+  await seedTrips(created[0].id);
 
   if ((await prisma.lateRecord.count()) > 0) {
     console.log("Late records already exist; skipped generating history.");
@@ -192,6 +193,91 @@ async function seedViolations(rolls: string[], adminId: number) {
   }
   await prisma.violation.createMany({ data });
   console.log(`Seeded ${data.length} violations.`);
+}
+
+async function seedTrips(adminId: number) {
+  if ((await prisma.trip.count()) > 0) return;
+  const day = (offset: number) => new Date(`${localDate(new Date(Date.now() + offset * 86_400_000))}T00:00:00Z`);
+
+  const upcoming = await prisma.trip.create({
+    data: {
+      title: "Study tour to Lahore Museum & Badshahi Mosque",
+      type: "STUDY_TOUR",
+      destination: "Lahore Museum, Mall Road and Badshahi Mosque",
+      purpose: "History and Pakistan Studies field visit for first-year students.",
+      itinerary: "08:00 Depart college\n09:30 Lahore Museum guided tour\n12:30 Lunch\n14:00 Badshahi Mosque & Fort\n17:00 Return",
+      departDate: day(9),
+      departTime: "08:00",
+      returnDate: day(9),
+      returnTime: "17:30",
+      meetingPoint: "College main gate",
+      programs: ["FSc Pre-Engineering", "ICS"],
+      seats: 45,
+      feeAmount: 800,
+      feeDeadline: day(5),
+      consentDeadline: day(5),
+      inChargeName: "Prof. Asif Mehmood",
+      inChargePhone: "03001234567",
+      createdById: adminId,
+      staff: { create: [{ name: "Ms. Nadia Iqbal", phone: "03211234567", role: "Female staff escort" }, { name: "Mr. Kamran Ali", role: "Assistant" }] },
+      vehicles: { create: [{ name: "Coaster LEA-1234", driverName: "Muhammad Rafiq", driverPhone: "03331112233", seats: 26 }, { name: "Coaster LEB-5678", driverName: "Ghulam Abbas", seats: 26 }] },
+    },
+    include: { vehicles: true },
+  });
+  const pool = await prisma.student.findMany({
+    where: { program: { in: ["FSc Pre-Engineering", "ICS"] }, status: "ACTIVE" },
+    orderBy: { rollNo: "asc" },
+    take: 32,
+  });
+  let i = 0;
+  for (const s of pool) {
+    i += 1;
+    await prisma.tripParticipant.create({
+      data: {
+        tripId: upcoming.id,
+        rollNo: s.rollNo,
+        consent: i % 4 === 0 ? "PENDING" : i % 13 === 0 ? "REFUSED" : "RECEIVED",
+        feePaid: i % 3 === 0 ? 0 : 800,
+        receiptNo: i % 3 === 0 ? null : `TR-${1000 + i}`,
+        vehicleId: i <= 20 ? upcoming.vehicles[0].id : null,
+        medicalNotes: i === 5 ? "Asthma — carries inhaler" : null,
+      },
+    });
+  }
+
+  const past = await prisma.trip.create({
+    data: {
+      title: "Industrial visit to Nestlé factory",
+      type: "INDUSTRIAL_VISIT",
+      destination: "Nestlé Pakistan, Sheikhupura Road",
+      departDate: day(-20),
+      departTime: "08:30",
+      returnDate: day(-20),
+      returnTime: "15:00",
+      programs: ["BSCS"],
+      seats: 30,
+      feeAmount: 0,
+      inChargeName: "Mr. Kamran Ali",
+      status: "RETURNED",
+      departedAt: new Date(Date.now() - 20 * 86_400_000),
+      returnedAt: new Date(Date.now() - 20 * 86_400_000 + 6 * 3_600_000),
+      createdById: adminId,
+    },
+  });
+  const bscs = await prisma.student.findMany({ where: { program: "BSCS" }, take: 18, orderBy: { rollNo: "asc" } });
+  for (const [n, s] of bscs.entries()) {
+    const went = n !== 4;
+    await prisma.tripParticipant.create({
+      data: {
+        tripId: past.id,
+        rollNo: s.rollNo,
+        consent: "RECEIVED",
+        departedAt: went ? past.departedAt : null,
+        returnedAt: went ? past.returnedAt : null,
+      },
+    });
+  }
+  console.log("Seeded 2 trips.");
 }
 
 main()

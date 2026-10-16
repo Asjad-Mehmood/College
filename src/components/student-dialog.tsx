@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useRef } from "react";
 import { Pencil, UserPlus, X } from "lucide-react";
 import { saveStudent } from "@/app/(app)/students/actions";
 import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
+import { useFormAction } from "@/components/use-form-action";
 
 export type StudentFields = {
   rollNo: string;
@@ -19,8 +20,8 @@ export type StudentFields = {
 
 export function StudentDialog({ student, programs }: { student?: StudentFields; programs: string[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [state, action, pending] = useActionState(saveStudent, null);
   const editing = !!student;
+  const [state, onSubmit, pending] = useFormAction(saveStudent, null, { resetOnSuccess: !editing });
 
   return (
     <>
@@ -32,7 +33,7 @@ export function StudentDialog({ student, programs }: { student?: StudentFields; 
         ref={dialogRef}
         className="m-auto w-[min(36rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-black/50"
       >
-        <form action={action}>
+        <form onSubmit={onSubmit}>
           <div className="flex items-center justify-between border-b border-line px-5 py-4">
             <p className="font-semibold">{editing ? "Edit student" : "Add a student"}</p>
             <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-lg p-1.5 hover:bg-surface-2" aria-label="Close">
