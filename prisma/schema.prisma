@@ -137,8 +137,11 @@ model Student {
   trials       TrialCandidate[]
   achievements Achievement[]
   photo        StudentPhoto?
+  batchId      Int?              @map("batch_id")
+  batch        Batch?            @relation(fields: [batchId], references: [id], onDelete: SetNull)
 
   @@index([program, section])
+  @@index([batchId])
   @@map("students")
 }
 
@@ -569,4 +572,31 @@ model StudentPhoto {
   student Student @relation(fields: [rollNo], references: [rollNo], onDelete: Cascade, onUpdate: Cascade)
 
   @@map("student_photos")
+}
+
+// An academic year, e.g. "2026–27". Records belong to the year their date falls in.
+model AcademicYear {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(20)
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  // A closed year is an archive: viewable, not editable.
+  closed    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("academic_years")
+}
+
+// Students who joined together, e.g. "Batch 2026–28".
+model Batch {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(30)
+  startYear Int      @map("start_year")
+  endYear   Int      @map("end_year")
+  passedOut Boolean  @default(false) @map("passed_out")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  students Student[]
+
+  @@map("batches")
 }

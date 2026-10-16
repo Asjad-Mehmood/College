@@ -1,7 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import type { CaseStatus, Severity } from "@/generated/prisma/enums";
-import { prisma } from "@/lib/prisma";
+import { scoped } from "@/lib/scope";
 import { RANGES, resolveDateRange, type RangeKey } from "@/lib/records";
 import type { Settings } from "@/lib/settings";
 import { fromDbDate, nextMonthStart, toDbDate } from "@/lib/time";
@@ -112,6 +112,7 @@ export async function queryViolations(
   settings: Settings,
   opts: { limit?: number; offset?: number } = {},
 ) {
+  const prisma = await scoped();
   const eveningSections = f.shift
     ? (await prisma.section.findMany({ where: { shift: "EVENING" }, select: { name: true } })).map((x) => x.name)
     : [];
@@ -150,6 +151,7 @@ export type ViolationRow = Awaited<ReturnType<typeof queryViolations>>["rows"][n
 
 /** Violations per day of a month, as { "YYYY-MM-DD": count }. */
 export async function violationCountsForMonth(month: string) {
+  const prisma = await scoped();
   const rows = await prisma.violation.groupBy({
     by: ["incidentDate"],
     where: { incidentDate: { gte: toDbDate(`${month}-01`), lt: toDbDate(nextMonthStart(`${month}-01`)) } },
@@ -159,6 +161,7 @@ export async function violationCountsForMonth(month: string) {
 }
 
 export async function getViolationTypes(opts: { activeOnly?: boolean } = {}) {
+  const prisma = await scoped();
   const types = await prisma.violationType.findMany({
     where: opts.activeOnly ? { active: true } : undefined,
     orderBy: [{ active: "desc" }, { severity: "asc" }, { name: "asc" }],

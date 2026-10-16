@@ -5,6 +5,8 @@ import type { DisciplineAction, LateReason } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth";
 import { ACTION_LABELS, REASON_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
+import { closedYearMessage } from "@/lib/scope";
+import { fromDbDate } from "@/lib/time";
 
 export type ActionResult = { ok: boolean; message?: string };
 
@@ -12,8 +14,16 @@ async function adminOnly() {
   return requireUser(["ADMIN"]);
 }
 
+/** Message if the record belongs to a closed (archived) academic year. */
+async function locked(id: number) {
+  const r = await prisma.lateRecord.findUnique({ where: { id }, select: { lateDate: true } });
+  return r ? closedYearMessage(fromDbDate(r.lateDate)) : null;
+}
+
 export async function setFinePaid(id: number, paid: boolean): Promise<ActionResult> {
   await adminOnly();
+  const closed = await locked(id);
+  if (closed) return { ok: false, message: closed };
   await prisma.lateRecord.update({
     where: { id },
     data: { finePaid: paid, finePaidAt: paid ? new Date() : null },
@@ -27,6 +37,8 @@ export async function updateRecord(
   input: { reason: LateReason; actionTaken: DisciplineAction; fineAmount: number; remarks: string },
 ): Promise<ActionResult> {
   await adminOnly();
+  const closed = await locked(id);
+  if (closed) return { ok: false, message: closed };
   if (!(input.reason in REASON_LABELS) || !(input.actionTaken in ACTION_LABELS)) {
     return { ok: false, message: "Invalid reason or action." };
   }
@@ -47,6 +59,8 @@ export async function updateRecord(
 
 export async function deleteRecord(id: number): Promise<ActionResult> {
   await adminOnly();
+  const closed = await locked(id);
+  if (closed) return { ok: false, message: closed };
   await prisma.lateRecord.delete({ where: { id } });
   refresh();
   return { ok: true, message: "Record deleted." };

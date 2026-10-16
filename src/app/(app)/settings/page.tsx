@@ -5,6 +5,9 @@ import { requireUser } from "@/lib/auth";
 import { ROLE_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { defaultBatchId, getScope } from "@/lib/scope";
+import { addDays, formatDate, localParts } from "@/lib/time";
+import { YearsAndBatches } from "./years-batches";
 import { ImportForm, NewUserForm, ScheduleToggle, SettingsForm, UserRowActions } from "./forms";
 import { ViolationTypes } from "./violation-types";
 
@@ -30,6 +33,7 @@ export default function SettingsPage() {
 
 async function SettingsContent() {
   const me = await requireUser(["ADMIN"]);
+  const scope = await getScope();
   const settings = await getSettings();
   const [users, studentCount, violationTypes] = await Promise.all([
     prisma.user.findMany({ orderBy: [{ active: "desc" }, { role: "asc" }, { fullName: "asc" }] }),
@@ -106,8 +110,13 @@ async function SettingsContent() {
             description={`Upload the class lists at the start of each session. Existing roll numbers are updated. ${studentCount.toLocaleString()} students on file.`}
           />
           <div className="p-5">
-            <ImportForm />
+            <ImportForm batches={scope.batches} defaultBatchId={await defaultBatchId()} />
           </div>
+        </Card>
+
+        <Card id="years" className="scroll-mt-6">
+          <CardHeader title="Academic years & batches" description="Choose which one to work in from the sidebar. Gate check-in always sees every active student." />
+          <YearsCard />
         </Card>
 
         <Card>
@@ -146,5 +155,21 @@ async function SettingsContent() {
         </Card>
       </div>
     </div>
+  );
+}
+
+async function YearsCard() {
+  const scope = await getScope();
+  const active = await prisma.student.groupBy({ by: ["batchId"], where: { status: "ACTIVE" }, _count: { _all: true } });
+  const activeBy = new Map(active.map((a) => [a.batchId, a._count._all]));
+  const today = localParts(new Date(), (await getSettings()).timezone).date;
+  const latest = scope.years[0];
+  const nextFrom = latest ? addDays(latest.to, 1) : `${today.slice(0, 4)}-08-01`;
+  return (
+    <YearsAndBatches
+      nextYearFrom={nextFrom}
+      years={scope.years.map((y) => ({ id: y.id, name: y.name, closed: y.closed, label: `${formatDate(y.from)} – ${formatDate(y.to)}`, current: y.from <= today && today <= y.to }))}
+      batches={scope.batches.map((b) => ({ id: b.id, name: b.name, passedOut: b.passedOut, students: b.students, active: activeBy.get(b.id) ?? 0 }))}
+    />
   );
 }

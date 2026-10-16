@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ClipboardList } from "lucide-react";
 import { Card, CardHeader, EmptyState, PageHeader, Pill, Skeleton } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { scoped } from "@/lib/scope";
 import { getSettings } from "@/lib/settings";
 import { formatDate, fromDbDate, localParts } from "@/lib/time";
 import { NewTrialForm } from "./trial-forms";
@@ -23,6 +23,7 @@ export default function TrialsPage() {
 }
 
 async function Content() {
+  const prisma = await scoped();
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
   const settings = await getSettings();
   const [trials, sports] = await Promise.all([

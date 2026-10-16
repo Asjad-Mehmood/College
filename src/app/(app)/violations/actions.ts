@@ -8,9 +8,10 @@ import { requireUser } from "@/lib/auth";
 import { VIOLATION_ACTION_LABELS } from "@/lib/labels";
 import { smsLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
+import { assertOpenDate, closedYearMessage } from "@/lib/scope";
 import { resolveRoll } from "@/lib/student-lookup";
 import { getSettings } from "@/lib/settings";
-import { formatDate, isValidYmd, localParts, toDbDate } from "@/lib/time";
+import { formatDate, fromDbDate, isValidYmd, localParts, toDbDate } from "@/lib/time";
 import { violationParentMessage } from "@/lib/violations";
 
 export type ViolationStudent = {
@@ -164,6 +165,8 @@ export type CreateResult = { ok: true; id: number; cases: SavedCase[] } | { ok: 
 /** Record one incident for one or more students: one case per student, linked by an incident group. */
 export async function createViolation(rollNos: string[], input: ViolationInput): Promise<CreateResult> {
   const user = await requireUser(["ADMIN"]);
+  const lockedMsg = await closedYearMessage(input.incidentDate);
+  if (lockedMsg) return { ok: false, error: lockedMsg };
   const unique = [...new Set(rollNos)].slice(0, 50);
   if (unique.length === 0) return { ok: false, error: "Add at least one student." };
   const students = await prisma.student.findMany({ where: { rollNo: { in: unique } } });
@@ -214,6 +217,8 @@ export async function createViolation(rollNos: string[], input: ViolationInput):
 /** Add another student to an existing incident: copies the case details for them. */
 export async function addStudentToIncident(caseId: number, rawRoll: string): Promise<{ ok: boolean; error?: string }> {
   const user = await requireUser(["ADMIN"]);
+  const lockedMsg = await closedCase(caseId);
+  if (lockedMsg) return { ok: false, error: lockedMsg };
   const base = await prisma.violation.findUnique({ where: { id: caseId } });
   if (!base) return { ok: false, error: "Case not found." };
   const roll = (await resolveRoll(rawRoll.trim().toUpperCase())) ?? rawRoll.trim().toUpperCase();
@@ -255,6 +260,9 @@ export async function addStudentToIncident(caseId: number, rawRoll: string): Pro
 
 export async function updateViolation(id: number, input: ViolationInput): Promise<{ ok: boolean; error?: string }> {
   await requireUser(["ADMIN"]);
+  const lockedMsg = await closedCase(id);
+  if (lockedMsg) return { ok: false, error: lockedMsg };
+  if (await closedYearMessage(input.incidentDate)) return { ok: false, error: (await closedYearMessage(input.incidentDate))! };
   const existing = await prisma.violation.findUnique({ where: { id } });
   if (!existing) return { ok: false, error: "Case not found." };
   const v = await validate(input, existing.typeId);
@@ -274,8 +282,20 @@ export async function updateViolation(id: number, input: ViolationInput): Promis
 
 export async function setViolationFinePaid(id: number, paid: boolean) {
   await requireUser(["ADMIN"]);
+  await assertCaseOpen(id);
   await prisma.violation.update({ where: { id }, data: { finePaid: paid, finePaidAt: paid ? new Date() : null } });
   refresh();
+}
+
+async function closedCase(id: number) {
+  const v = await prisma.violation.findUnique({ where: { id }, select: { incidentDate: true } });
+  return v ? closedYearMessage(fromDbDate(v.incidentDate)) : null;
+}
+
+/** Throws if the case belongs to a closed (archived) academic year. */
+async function assertCaseOpen(id: number) {
+  const v = await prisma.violation.findUnique({ where: { id }, select: { incidentDate: true } });
+  if (v) await assertOpenDate(fromDbDate(v.incidentDate));
 }
 
 /** The case and every case recorded with it for the same incident. */
@@ -286,6 +306,7 @@ async function wholeCase(id: number) {
 
 export async function closeViolation(id: number, note: string) {
   await requireUser(["ADMIN"]);
+  await assertCaseOpen(id);
   const data = { status: "CLOSED" as const, closedAt: new Date(), closingNote: note.trim().slice(0, 300) || null };
   await prisma.violation.updateMany({ where: await wholeCase(id), data });
   refresh();
@@ -293,6 +314,7 @@ export async function closeViolation(id: number, note: string) {
 
 export async function reopenViolation(id: number) {
   await requireUser(["ADMIN"]);
+  await assertCaseOpen(id);
   await prisma.violation.updateMany({ where: await wholeCase(id), data: { status: "OPEN", closedAt: null, closingNote: null } });
   refresh();
 }
@@ -300,6 +322,7 @@ export async function reopenViolation(id: number) {
 /** Deletes the whole case (all students recorded together), or removes just this student. */
 export async function deleteViolation(id: number, onlyThisStudent = false) {
   await requireUser(["ADMIN"]);
+  await assertCaseOpen(id);
   if (onlyThisStudent) {
     const v = await prisma.violation.findUnique({ where: { id }, select: { incidentGroup: true } });
     const others = v?.incidentGroup ? await prisma.violation.findFirst({ where: { incidentGroup: v.incidentGroup, id: { not: id } }, select: { id: true } }) : null;
@@ -325,6 +348,8 @@ const MAX_ATTACHMENT_BYTES = 3.5 * 1024 * 1024;
 /** Attach a file (application, undertaking, parent letter…) to a case. */
 export async function uploadViolationFile(id: number, formData: FormData): Promise<{ ok: boolean; error?: string }> {
   const user = await requireUser(["ADMIN"]);
+  const lockedMsg = await closedCase(id);
+  if (lockedMsg) return { ok: false, error: lockedMsg };
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose a file to upload." };
   if (!ATTACHMENT_TYPES[file.type]) return { ok: false, error: "Upload a PDF, photo (JPG/PNG) or Word file." };

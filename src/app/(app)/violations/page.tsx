@@ -9,10 +9,10 @@ import { ViewTabs, pickView } from "@/components/view-tabs";
 import { ViolationTable } from "@/components/violation-table";
 import { can, requireUser } from "@/lib/auth";
 import { SEVERITY_LABELS, SEVERITY_LEVEL } from "@/lib/labels";
-import { prisma } from "@/lib/prisma";
+import { getScope, scoped } from "@/lib/scope";
 import { RANGES, getClassOptions, monthOptions } from "@/lib/records";
 import { getSettings } from "@/lib/settings";
-import { addDays, formatDate, formatMonth, fromDbDate, isValidMonth, isValidYmd, localParts, nextMonthStart, toDbDate } from "@/lib/time";
+import { addDays, formatDate, formatMonth, fromDbDate, isValidMonth, isValidYmd, nextMonthStart, toDbDate } from "@/lib/time";
 import {
   VIOLATION_PAGE_SIZE,
   getViolationTypes,
@@ -69,10 +69,11 @@ type Params = Awaited<SP>;
 
 async function MonthView({ params }: { params: Params }) {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
-  const manage = can.manageRecords(user.role);
+  const prisma = await scoped();
+  const manage = can.manageRecords(user.role) && !(await getScope()).year.closed;
   const openCases = await prisma.violation.count({ where: { status: "OPEN" } });
   const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
+  const today = (await getScope()).anchor;
   const thisMonth = today.slice(0, 7);
   const monthParam = typeof params.month === "string" ? params.month : undefined;
   const month = isValidMonth(monthParam) && monthParam <= thisMonth ? monthParam : thisMonth;
@@ -367,7 +368,7 @@ async function HeaderActions({ searchParams }: { searchParams: SP }) {
 
 async function Register({ params }: { params: Params }) {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
-  const manage = can.manageRecords(user.role);
+  const manage = can.manageRecords(user.role) && !(await getScope()).year.closed;
   const filters = parseViolationFilters(params);
   const settings = await getSettings();
   const [{ rows, total, range }, classes, types] = await Promise.all([

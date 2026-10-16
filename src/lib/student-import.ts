@@ -55,7 +55,7 @@ function status(value: string) {
   return null;
 }
 
-export async function importStudents(file: File): Promise<ImportReport> {
+export async function importStudents(file: File, batchId: number | null = null): Promise<ImportReport> {
   let rows: Record<string, unknown>[];
   try {
     const book = XLSX.read(await file.arrayBuffer(), { type: "array", raw: false });
@@ -131,10 +131,10 @@ export async function importStudents(file: File): Promise<ImportReport> {
     const chunk = records.slice(i, i + 500);
     const values = chunk.map(
       (r) =>
-        Prisma.sql`(${r.rollNo}, ${r.fullName}, ${r.fatherName}, ${r.program}, ${r.section}, ${r.studentPhone}, ${r.parentPhone}, ${r.photoUrl}, ${r.status}::"StudentStatus", now(), now())`,
+        Prisma.sql`(${r.rollNo}, ${r.fullName}, ${r.fatherName}, ${r.program}, ${r.section}, ${r.studentPhone}, ${r.parentPhone}, ${r.photoUrl}, ${r.status}::"StudentStatus", ${batchId}, now(), now())`,
     );
     await prisma.$executeRaw`
-      INSERT INTO students (roll_no, full_name, father_name, program, section, student_phone, parent_phone, photo_url, status, created_at, updated_at)
+      INSERT INTO students (roll_no, full_name, father_name, program, section, student_phone, parent_phone, photo_url, status, batch_id, created_at, updated_at)
       VALUES ${Prisma.join(values)}
       ON CONFLICT (roll_no) DO UPDATE SET
         full_name = EXCLUDED.full_name,
@@ -145,6 +145,7 @@ export async function importStudents(file: File): Promise<ImportReport> {
         ${hasStudentPhone ? Prisma.sql`student_phone = EXCLUDED.student_phone,` : Prisma.empty}
         ${hasPhoto ? Prisma.sql`photo_url = EXCLUDED.photo_url,` : Prisma.empty}
         ${hasStatus ? Prisma.sql`status = EXCLUDED.status,` : Prisma.empty}
+        batch_id = COALESCE(students.batch_id, EXCLUDED.batch_id),
         updated_at = now()
     `;
   }

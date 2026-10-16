@@ -33,7 +33,7 @@ import {
 } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
 import { REASON_LABELS, SEVERITY_LABELS, SEVERITY_LEVEL } from "@/lib/labels";
-import { prisma } from "@/lib/prisma";
+import { batchSql, getScope, scoped } from "@/lib/scope";
 import { getSettings } from "@/lib/settings";
 import { STRIKE_LABELS, strikeLevel } from "@/lib/strikes";
 import {
@@ -108,9 +108,10 @@ function DashboardSkeleton() {
 }
 
 async function Dashboard() {
+  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
   const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
+  const today = (await getScope()).anchor;
   const yesterday = addDays(today, -1);
   const mStart = toDbDate(monthStart(today));
   const trendStart = addDays(today, -29);
@@ -153,13 +154,13 @@ async function Dashboard() {
     prisma.$queryRaw<{ program: string; lates: bigint; students: bigint }[]>`
       SELECT s.program, COUNT(*) AS lates, COUNT(DISTINCT r.roll_no) AS students
       FROM late_records r JOIN students s ON s.roll_no = r.roll_no
-      WHERE r.late_date >= ${mStart} AND r.late_date <= ${toDbDate(today)}
+      WHERE r.late_date >= ${mStart} AND r.late_date <= ${toDbDate(today)} ${await batchSql("s")}
       GROUP BY s.program
       ORDER BY lates DESC
     `,
     prisma.$queryRaw<{ n: bigint }[]>`
       SELECT COUNT(*) AS n FROM late_records r JOIN students s ON s.roll_no = r.roll_no
-      WHERE r.late_date = ${toDbDate(today)} AND s.section IN (SELECT name FROM sections WHERE shift = 'EVENING')
+      WHERE r.late_date = ${toDbDate(today)} AND s.section IN (SELECT name FROM sections WHERE shift = 'EVENING') ${await batchSql("s")}
     `,
   ]);
   const evening = Number(eveningToday[0]?.n ?? 0);
@@ -384,6 +385,7 @@ async function Dashboard() {
 }
 
 async function TripsPanel() {
+  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
   const trips = await prisma.trip.findMany({
     where: { status: { in: ["OPEN", "CLOSED", "DEPARTED"] } },
@@ -432,9 +434,9 @@ async function TripsPanel() {
 }
 
 async function ViolationsPanel() {
+  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
-  const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
+  const today = (await getScope()).anchor;
   const monthWhere = { incidentDate: { gte: toDbDate(monthStart(today)), lte: toDbDate(today) } };
   const [thisMonth, severeThisMonth, open, recent] = await Promise.all([
     prisma.violation.count({ where: monthWhere }),
@@ -564,9 +566,10 @@ async function QuickActions() {
 }
 
 async function AttentionAndOverview() {
+  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
   const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
+  const today = (await getScope()).anchor;
   const mStart = toDbDate(monthStart(today));
   const weekAhead = toDbDate(addDays(today, 7));
   const [
@@ -593,7 +596,7 @@ async function AttentionAndOverview() {
       orderBy: { departDate: "asc" },
     }),
     prisma.student.count({ where: { status: "ACTIVE" } }),
-    prisma.$queryRaw<{ n: bigint }[]>`SELECT COUNT(*) AS n FROM students WHERE status = 'ACTIVE' AND section IN (SELECT name FROM sections WHERE shift = 'EVENING')`,
+    prisma.$queryRaw<{ n: bigint }[]>`SELECT COUNT(*) AS n FROM students s WHERE status = 'ACTIVE' AND section IN (SELECT name FROM sections WHERE shift = 'EVENING') ${await batchSql("s")}`,
     prisma.violation.count({ where: { incidentDate: { gte: mStart } } }),
     prisma.trip.count({ where: { status: { in: ["OPEN", "CLOSED", "DEPARTED"] } } }),
     prisma.sportsEvent.findMany({ where: { endDate: { gte: toDbDate(today) } }, orderBy: { startDate: "asc" }, take: 3 }),
@@ -680,19 +683,20 @@ async function AttentionAndOverview() {
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 async function Patterns() {
+  const prisma = await scoped();
   await requireUser(["ADMIN", "PRINCIPAL"]);
-  const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
+  const today = (await getScope()).anchor;
   const from = toDbDate(addDays(today, -89));
   const mStart = toDbDate(monthStart(today));
   const [byDow, bySection, byReason] = await Promise.all([
     prisma.$queryRaw<{ dow: number; n: bigint }[]>`
-      SELECT EXTRACT(DOW FROM late_date)::int AS dow, COUNT(*) AS n
-      FROM late_records WHERE late_date >= ${from} GROUP BY 1`,
+      SELECT EXTRACT(DOW FROM r.late_date)::int AS dow, COUNT(*) AS n
+      FROM late_records r JOIN students s ON s.roll_no = r.roll_no
+      WHERE r.late_date >= ${from} AND r.late_date <= ${toDbDate(today)} ${await batchSql("s")} GROUP BY 1`,
     prisma.$queryRaw<{ section: string; n: bigint; students: bigint }[]>`
       SELECT s.section, COUNT(*) AS n, COUNT(DISTINCT r.roll_no) AS students
       FROM late_records r JOIN students s ON s.roll_no = r.roll_no
-      WHERE r.late_date >= ${mStart} GROUP BY s.section ORDER BY n DESC LIMIT 6`,
+      WHERE r.late_date >= ${mStart} AND r.late_date <= ${toDbDate(today)} ${await batchSql("s")} GROUP BY s.section ORDER BY n DESC LIMIT 6`,
     prisma.lateRecord.groupBy({ by: ["reason"], where: { lateDate: { gte: mStart } }, _count: { _all: true } }),
   ]);
   if (byDow.length === 0 && bySection.length === 0) return null;

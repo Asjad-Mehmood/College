@@ -8,6 +8,7 @@ import { parentLateMessage, smsLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
 import { SHIFT_LABELS, getSettings, shiftStart, type ShiftKey } from "@/lib/settings";
 import { strikeLevel, type StrikeLevel } from "@/lib/strikes";
+import { closedYearMessage } from "@/lib/scope";
 import { resolveRoll } from "@/lib/student-lookup";
 import {
   formatMinutes,
@@ -213,6 +214,8 @@ export async function logLateArrival(input: {
 
   // Time is always taken on the server, never trusted from the device.
   const { now, today, arrivalTime, minutesLate } = arrival(settings, await shiftOf(student.section));
+  const locked = await closedYearMessage(today);
+  if (locked) return { ok: false, error: locked };
   if (minutesLate <= settings.gracePeriodMins) {
     return {
       ok: false,

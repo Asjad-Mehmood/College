@@ -5,7 +5,7 @@ import { Card, EmptyState, Input, PageHeader, Skeleton } from "@/components/ui";
 import { FilterForm } from "@/components/filter-form";
 import { requireUser } from "@/lib/auth";
 import { STUDENT_STATUS_LABELS } from "@/lib/labels";
-import { prisma } from "@/lib/prisma";
+import { scoped } from "@/lib/scope";
 import { resolveRoll } from "@/lib/student-lookup";
 import { AuditList } from "./audit-list";
 
@@ -27,6 +27,7 @@ export default function AuditPage(props: PageProps<"/audit">) {
 
 async function Content({ searchParams }: { searchParams: PageProps<"/audit">["searchParams"] }) {
   await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const sp = await searchParams;
   const q = (typeof sp.q === "string" ? sp.q.trim() : "").slice(0, 100);
   const digits = q.replace(/\D/g, "");

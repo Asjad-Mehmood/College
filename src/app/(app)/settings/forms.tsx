@@ -152,7 +152,7 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
   );
 }
 
-export function ImportForm() {
+export function ImportForm({ batches = [], defaultBatchId }: { batches?: { id: number; name: string; passedOut: boolean }[]; defaultBatchId?: number | null }) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [report, onSubmit, pending] = useFormAction<ImportReport | null>(
     async (prev, fd) => {
@@ -168,6 +168,19 @@ export function ImportForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      {batches.length > 0 && (
+        <Field label="Put new students in batch" hint="Students already in the portal keep their batch.">
+          <Select name="batchId" defaultValue={String(defaultBatchId ?? "")}>
+            <option value="">No batch</option>
+            {batches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+                {b.passedOut ? " (passed out)" : ""}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
       <label
         onDragOver={(e) => {
           e.preventDefault();

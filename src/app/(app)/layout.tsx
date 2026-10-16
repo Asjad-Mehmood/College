@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Suspense } from "react";
+import { CalendarRange } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
 import { BrandMark } from "@/components/brand";
 import { BottomNav, LogoutButton, MobileMenu, SideNav } from "@/components/nav";
@@ -7,6 +9,7 @@ import { Avatar, Skeleton } from "@/components/ui";
 import { APP_NAME, APP_TAGLINE } from "@/lib/app";
 import { requireUser } from "@/lib/auth";
 import { ROLE_LABELS } from "@/lib/labels";
+import { getScope, scopeLabel } from "@/lib/scope";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
@@ -20,6 +23,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
             <p className="text-[12px] text-muted">{APP_TAGLINE}</p>
           </div>
         </div>
+        <Suspense>
+          <ScopeChip />
+        </Suspense>
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <Suspense fallback={<NavSkeleton />}>
             <SideNavForUser />
@@ -48,6 +54,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-4 pt-6 pb-28 sm:px-6 lg:px-8 lg:pb-10">
+        <Suspense>
+          <ScopeBar />
+        </Suspense>
         {children}
       </main>
 
@@ -94,6 +103,46 @@ async function UserCard() {
       </div>
       <ThemeToggle />
       <LogoutButton action={logout} compact />
+    </div>
+  );
+}
+
+/** Selected year and batch, with a link to switch (desktop sidebar). */
+async function ScopeChip() {
+  const user = await requireUser();
+  if (user.role === "GATE") return null;
+  const s = await getScope();
+  return (
+    <Link href="/select" className="mx-3 mb-1 flex items-center gap-2 rounded-xl border border-line bg-surface-2/60 px-3 py-2 hover:border-accent/50">
+      <CalendarRange className="size-4 shrink-0 text-accent-ink" aria-hidden />
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block truncate text-[13px] font-semibold">{s.year.name}{s.year.closed ? " (archived)" : ""}</span>
+        <span className="block truncate text-[12px] text-muted">{s.batch ? s.batch.name : "All batches"}</span>
+      </span>
+      <span className="text-[12px] font-medium text-accent-ink">Switch</span>
+    </Link>
+  );
+}
+
+/** Phones: the same, as a slim bar above the page; plus the archive warning everywhere. */
+async function ScopeBar() {
+  const user = await requireUser();
+  if (user.role === "GATE") return null;
+  const s = await getScope();
+  return (
+    <div className="no-print mb-4 flex flex-col gap-2">
+      <Link href="/select" className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-[13px] lg:hidden">
+        <span className="flex min-w-0 items-center gap-2">
+          <CalendarRange className="size-4 shrink-0 text-accent-ink" aria-hidden />
+          <span className="truncate font-medium">{scopeLabel(s)}</span>
+        </span>
+        <span className="font-medium text-accent-ink">Switch</span>
+      </Link>
+      {s.year.closed && (
+        <p className="rounded-xl bg-warning/15 px-4 py-2.5 text-[13px] ring-1 ring-warning/40 ring-inset">
+          You are viewing the archived year <b>{s.year.name}</b>. Records can be viewed and printed, not changed.
+        </p>
+      )}
     </div>
   );
 }

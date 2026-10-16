@@ -16,9 +16,20 @@ export type StudentFields = {
   studentPhone: string | null;
   photoUrl: string | null;
   status: string;
+  batchId?: number | null;
 };
 
-export function StudentDialog({ student, programs, sections, defaultSection }: { defaultSection?: string; student?: StudentFields; programs: string[]; sections: { name: string; year: "FIRST" | "SECOND" | null; shift?: "MORNING" | "EVENING" }[] }) {
+export function StudentDialog({
+  student,
+  programs,
+  sections,
+  defaultSection,
+  batches = [],
+  defaultBatchId,
+}: {
+  defaultSection?: string;
+  batches?: { id: number; name: string; passedOut: boolean }[];
+  defaultBatchId?: number | null; student?: StudentFields; programs: string[]; sections: { name: string; year: "FIRST" | "SECOND" | null; shift?: "MORNING" | "EVENING" }[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const editing = !!student;
   const [state, onSubmit, pending] = useFormAction(saveStudent, null, { resetOnSuccess: !editing });
@@ -91,6 +102,17 @@ export function StudentDialog({ student, programs, sections, defaultSection }: {
                   );
                 })}
                 {student && !sections.some((x) => x.name === student.section) && <option value={student.section}>{student.section}</option>}
+              </Select>
+            </Field>
+            <Field label="Batch" hint="The batch this student joined with">
+              <Select name="batchId" defaultValue={String(student ? (student.batchId ?? "") : (defaultBatchId ?? ""))}>
+                <option value="">No batch</option>
+                {batches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                    {b.passedOut ? " (passed out)" : ""}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field label="Parent phone *" hint="Used for WhatsApp / SMS alerts">

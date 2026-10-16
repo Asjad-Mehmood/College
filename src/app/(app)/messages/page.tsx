@@ -6,10 +6,10 @@ import { FilterForm } from "@/components/filter-form";
 import { requireUser } from "@/lib/auth";
 import { REASON_LABELS } from "@/lib/labels";
 import { parentLateMessage } from "@/lib/messages";
-import { prisma } from "@/lib/prisma";
+import { getScope, scoped } from "@/lib/scope";
 import { getSectionOptions } from "@/lib/section-options";
 import { getSettings } from "@/lib/settings";
-import { formatDate, formatTime, fromDbDate, localParts, monthStart, toDbDate } from "@/lib/time";
+import { formatDate, formatTime, fromDbDate, monthStart, toDbDate } from "@/lib/time";
 import { tripParentMessage, tripWhen } from "@/lib/trips";
 import { MessageQueue, type QueueItem } from "./queue";
 
@@ -41,10 +41,11 @@ export default function MessagesPage(props: PageProps<"/messages">) {
 
 async function Content({ searchParams }: { searchParams: PageProps<"/messages">["searchParams"] }) {
   await requireUser(["ADMIN"]);
+  const prisma = await scoped();
   const sp = await searchParams;
   const list: ListKey = LISTS.some((l) => l.key === sp.list) ? (sp.list as ListKey) : "today";
   const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
+  const today = (await getScope()).anchor;
   const sign = `– Discipline In-Charge, ${settings.collegeName}`;
   const mStart = toDbDate(monthStart(today));
   let items: QueueItem[] = [];

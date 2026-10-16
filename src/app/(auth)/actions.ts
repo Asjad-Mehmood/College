@@ -20,7 +20,8 @@ export async function login(_: FormState, formData: FormData): Promise<FormState
     return { ok: false, message: "Incorrect email or password." };
   }
   await createSession(user.id);
-  redirect(homeFor(user.role));
+  // Office staff choose the academic year and batch first; gate staff go straight to the gate.
+  redirect(user.role === "GATE" ? homeFor(user.role) : "/select");
 }
 
 export async function logout() {

@@ -30,6 +30,7 @@ import { telLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
 import { getClassOptions } from "@/lib/records";
 import { getSectionOptions } from "@/lib/section-options";
+import { getScope } from "@/lib/scope";
 import { PhotoUploader } from "@/components/photo-uploader";
 import { SHIFT_LABELS, getSettings } from "@/lib/settings";
 import { STRIKE_LABELS, ordinal, strikeLevel } from "@/lib/strikes";
@@ -65,6 +66,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
   const student = await prisma.student.findUnique({
     where: { rollNo },
     include: {
+      batch: { select: { name: true } },
       teams: { include: { team: { include: { sport: true, event: true } } } },
       achievements: { orderBy: { achievedOn: "desc" } },
       trips: {
@@ -137,6 +139,10 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
                 </dd>
               </div>
               <div>
+                <dt className="text-[12px] text-muted">Batch</dt>
+                <dd className="font-medium">{student.batch?.name ?? "—"}</dd>
+              </div>
+              <div>
                 <dt className="text-[12px] text-muted">Parent phone</dt>
                 <dd className="font-mono font-medium">{student.parentPhone}</dd>
               </div>
@@ -168,6 +174,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
               <StudentDialog
                 programs={programs}
                 sections={sectionOptions}
+                batches={(await getScope()).batches}
                 student={{
                   rollNo: student.rollNo,
                   fullName: student.fullName,
@@ -178,6 +185,7 @@ async function Profile({ params }: { params: PageProps<"/students/[rollNo]">["pa
                   studentPhone: student.studentPhone,
                   photoUrl: student.photoUrl,
                   status: student.status,
+                  batchId: student.batchId,
                 }}
               />
             )}

@@ -4,9 +4,10 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { StudentStatus } from "@/generated/prisma/enums";
 import { can, getCurrentUser } from "@/lib/auth";
 import { STUDENT_STATUS_LABELS } from "@/lib/labels";
-import { prisma } from "@/lib/prisma";
+import { scoped } from "@/lib/scope";
 
 export async function GET(request: NextRequest) {
+  const prisma = await scoped();
   const user = await getCurrentUser();
   if (!user) return new Response("Sign in required", { status: 401 });
   if (!can.viewReports(user.role)) return new Response("Not allowed", { status: 403 });

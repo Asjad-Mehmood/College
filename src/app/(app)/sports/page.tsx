@@ -4,9 +4,8 @@ import { Suspense } from "react";
 import { CalendarDays, MapPin, Trophy } from "lucide-react";
 import { Card, CardHeader, EmptyState, PageHeader, Pill, Skeleton } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { getSettings } from "@/lib/settings";
-import { formatDate, fromDbDate, localParts } from "@/lib/time";
+import { getScope, scoped } from "@/lib/scope";
+import { formatDate, fromDbDate } from "@/lib/time";
 import { NewEventForm, SportsManager } from "./sports-forms";
 
 export const metadata: Metadata = { title: "Sports" };
@@ -23,10 +22,10 @@ export default function SportsPage() {
 }
 
 async function Content() {
+  const prisma = await scoped();
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
   const admin = can.administer(user.role);
-  const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
+  const today = (await getScope()).anchor;
   const [events, sports] = await Promise.all([
     prisma.sportsEvent.findMany({
       orderBy: { startDate: "desc" },

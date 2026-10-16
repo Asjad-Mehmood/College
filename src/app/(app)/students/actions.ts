@@ -25,6 +25,7 @@ export async function saveStudent(_: StudentFormState, formData: FormData): Prom
     studentPhone: get("studentPhone") || null,
     photoUrl: get("photoUrl") || null,
     status: (STATUSES.includes(get("status") as StudentStatus) ? get("status") : "ACTIVE") as StudentStatus,
+    batchId: Number(get("batchId")) || null,
   };
 
   if (!data.rollNo || !data.fullName || !data.fatherName || !data.program || !data.section || !data.parentPhone) {
@@ -33,6 +34,9 @@ export async function saveStudent(_: StudentFormState, formData: FormData): Prom
   if (data.rollNo.length > 20) return { ok: false, message: "Roll number must be 20 characters or fewer." };
   if (!(await prisma.program.findUnique({ where: { name: data.program } }))) {
     return { ok: false, message: "Choose a program from the list." };
+  }
+  if (data.batchId && !(await prisma.batch.findUnique({ where: { id: data.batchId } }))) {
+    return { ok: false, message: "Choose a batch from the list." };
   }
   if (!(await prisma.section.findUnique({ where: { name: data.section } }))) {
     return { ok: false, message: "Choose a section from the list. Create the section first if it doesn't exist." };

@@ -8,6 +8,7 @@ import { can, requireUser } from "@/lib/auth";
 import { CASE_STATUS_LABELS, SEVERITY_LABELS, SEVERITY_LEVEL, VIOLATION_ACTION_LABELS } from "@/lib/labels";
 import { telLink, whatsAppLink } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
+import { closedYearMessage } from "@/lib/scope";
 import { getSettings } from "@/lib/settings";
 import { formatDate, formatMinutes, fromDbDate, localParts, parseHHMM } from "@/lib/time";
 import { Attachments } from "./attachments";
@@ -61,7 +62,8 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
         })
       : [],
   ]);
-  const manage = can.manageRecords(user.role);
+  const archived = await closedYearMessage(fromDbDate(v.incidentDate));
+  const manage = can.manageRecords(user.role) && !archived;
   const s = v.student;
   const fine = Number(v.fineAmount);
   const action =
@@ -228,7 +230,7 @@ async function Case({ params }: { params: PageProps<"/violations/[id]">["params"
           </div>
           <p className="mt-3 text-[12px] text-muted">Letters open on the letterhead; you can edit the wording before printing.</p>
         </Card>
-        {can.manageRecords(user.role) && (
+        {manage && (
           <Card className="p-5">
             <p className="mb-3 text-sm font-semibold">Manage case</p>
             <CaseActions id={v.id} status={v.status} fineAmount={fine} finePaid={v.finePaid} groupSize={group.length + 1} />

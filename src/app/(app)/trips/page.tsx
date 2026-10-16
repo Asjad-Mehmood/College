@@ -7,9 +7,8 @@ import { Meter } from "@/components/meter";
 import { ButtonLink, Card, EmptyState, Input, PageHeader, Pill, Skeleton, Table, Td, Th, cx } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
 import { TRIP_STATUS_LABELS, TRIP_TYPE_LABELS } from "@/lib/labels";
-import { prisma } from "@/lib/prisma";
-import { getSettings } from "@/lib/settings";
-import { addDays, formatDate, fromDbDate, localParts } from "@/lib/time";
+import { getScope, scoped } from "@/lib/scope";
+import { addDays, formatDate, fromDbDate } from "@/lib/time";
 import { tripSummary, tripWhen } from "@/lib/trips";
 
 export const metadata: Metadata = { title: "Trips" };
@@ -47,6 +46,7 @@ async function Header() {
 type TripCardData = Awaited<ReturnType<typeof loadTrips>>[number];
 
 async function loadTrips() {
+  const prisma = await scoped();
   return prisma.trip.findMany({
     orderBy: [{ departDate: "desc" }, { id: "desc" }],
     take: 300,
@@ -68,8 +68,8 @@ type View = (typeof VIEWS)[number]["key"];
 async function TripList({ searchParams }: { searchParams: PageProps<"/trips">["searchParams"] }) {
   await requireUser(["ADMIN", "PRINCIPAL"]);
   const sp = await searchParams;
-  const [all, settings] = await Promise.all([loadTrips(), getSettings()]);
-  const today = localParts(new Date(), settings.timezone).date;
+  const all = await loadTrips();
+  const today = (await getScope()).anchor;
   const q = (typeof sp.q === "string" ? sp.q.trim() : "").toLowerCase();
 
   const isNow = (t: TripCardData) => t.status === "DEPARTED";

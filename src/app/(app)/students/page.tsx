@@ -25,7 +25,7 @@ import {
 } from "@/components/ui";
 import { can, requireUser } from "@/lib/auth";
 import { STUDENT_STATUS_LABELS } from "@/lib/labels";
-import { prisma } from "@/lib/prisma";
+import { defaultBatchId, getScope, scoped } from "@/lib/scope";
 import { getClassOptions } from "@/lib/records";
 import { YEAR_LABELS, getSectionOptions } from "@/lib/section-options";
 import { SHIFT_LABELS } from "@/lib/settings";
@@ -59,7 +59,9 @@ export default function StudentsPage(props: PageProps<"/students">) {
 }
 
 async function Header() {
+  const prisma = await scoped();
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const scope = await getScope();
   const [{ programs }, sections, programRows, programCounts] = await Promise.all([
     getClassOptions(),
     getSectionOptions(),
@@ -82,7 +84,7 @@ async function Header() {
             </Link>
             <ProgramsDialog programs={programRows.map((p) => ({ id: p.id, name: p.name, students: counts.get(p.name) ?? 0 }))} />
             <NewSectionDialog />
-            <StudentDialog programs={programs} sections={sections} />
+            <StudentDialog programs={programs} sections={sections} batches={scope.batches} defaultBatchId={await defaultBatchId()} />
           </>
         )
       }
@@ -130,6 +132,7 @@ async function Content({ searchParams }: { searchParams: SP }) {
 
 async function SectionsOverview({ year, shift }: { year: string; shift: string }) {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const [allSections, groups, inactive] = await Promise.all([
     getSectionOptions(),
     prisma.student.groupBy({ by: ["section", "program"], where: { status: "ACTIVE" }, _count: { _all: true } }),
@@ -143,7 +146,10 @@ async function SectionsOverview({ year, shift }: { year: string; shift: string }
     info.set(g.section, entry);
   }
   const inactiveBy = new Map(inactive.map((g) => [g.section, g._count._all]));
-  const sections = shift ? allSections.filter((x) => x.shift === shift) : allSections;
+  // With one batch selected, list only the sections that batch's students are in.
+  const batchMode = !!(await getScope()).batch;
+  const inBatch = (name: string) => (info.get(name)?.count ?? 0) + (inactiveBy.get(name) ?? 0) > 0;
+  const sections = allSections.filter((x) => (!shift || x.shift === shift) && (!batchMode || inBatch(x.name)));
   const hasEvening = allSections.some((x) => x.shift === "EVENING");
   const countOf = (name: string) => info.get(name)?.count ?? 0;
   const total = sections.reduce((sum, x) => sum + countOf(x.name), 0);
@@ -319,6 +325,7 @@ async function SectionsOverview({ year, shift }: { year: string; shift: string }
 
 async function StudentList({ sp }: { sp: Awaited<SP> }) {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).trim() : "");
   const q = str("q").slice(0, 100);
   const program = str("program");
@@ -523,6 +530,7 @@ async function SectionHeader({
   status: string;
   admin: boolean;
 }) {
+  const prisma = await scoped();
   const groups = await prisma.student.groupBy({ by: ["program", "status"], where: { section }, _count: { _all: true } });
   const byStatus = (st: string) => groups.filter((g) => g.status === st).reduce((a, g) => a + g._count._all, 0);
   const all = groups.reduce((a, g) => a + g._count._all, 0);
@@ -587,7 +595,7 @@ async function SectionHeader({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {admin && <StudentDialog programs={programs} sections={sectionOpts} defaultSection={section} />}
+            {admin && <StudentDialog programs={programs} sections={sectionOpts} defaultSection={section} batches={(await getScope()).batches} defaultBatchId={await defaultBatchId()} />}
             <a href={`/class-list/${enc}`} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
               <Printer className="size-4" aria-hidden /> Class list
             </a>

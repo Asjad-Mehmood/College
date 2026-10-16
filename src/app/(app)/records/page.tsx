@@ -28,7 +28,7 @@ import {
 import { ViewTabs, pickView } from "@/components/view-tabs";
 import { can, requireUser } from "@/lib/auth";
 import { REASON_LABELS } from "@/lib/labels";
-import { prisma } from "@/lib/prisma";
+import { getScope, scoped } from "@/lib/scope";
 import { strikeLevel } from "@/lib/strikes";
 import {
   PAGE_SIZE,
@@ -42,7 +42,7 @@ import {
   type RecordFilters,
 } from "@/lib/records";
 import { getSettings, type Settings } from "@/lib/settings";
-import { addDays, formatDate, formatMonth, fromDbDate, isValidMonth, isValidYmd, localParts, monthStart, nextMonthStart, toDbDate } from "@/lib/time";
+import { addDays, formatDate, formatMonth, fromDbDate, isValidMonth, isValidYmd, monthStart, nextMonthStart, toDbDate } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Late records" };
 
@@ -83,8 +83,9 @@ type Params = Awaited<SP>;
 
 async function MonthView({ params }: { params: Params }) {
   const user = await requireUser(["ADMIN", "PRINCIPAL"]);
+  const prisma = await scoped();
   const settings = await getSettings();
-  const today = localParts(new Date(), settings.timezone).date;
+  const today = (await getScope()).anchor;
   const thisMonth = today.slice(0, 7);
   const monthParam = typeof params.month === "string" ? params.month : undefined;
   const month = isValidMonth(monthParam) && monthParam <= thisMonth ? monthParam : thisMonth;
@@ -195,7 +196,7 @@ async function MonthView({ params }: { params: Params }) {
             {rows.length === 0 ? (
               <EmptyState icon={<CalendarX className="size-5" />} title="No late arrivals on this day" />
             ) : (
-              <LedgerTable rows={rows} settings={settings} manage={can.manageRecords(user.role)} showDate={false} />
+              <LedgerTable rows={rows} settings={settings} manage={can.manageRecords(user.role) && !(await getScope()).year.closed} showDate={false} />
             )}
           </>
         ) : (
@@ -335,7 +336,7 @@ async function Ledger({ params }: { params: Params }) {
     getClassOptions(),
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const manage = can.manageRecords(user.role);
+  const manage = can.manageRecords(user.role) && !(await getScope()).year.closed;
   const rangeLabel =
     range.from && range.to
       ? range.from === range.to

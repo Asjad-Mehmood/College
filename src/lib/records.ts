@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import type { DisciplineAction, LateReason } from "@/generated/prisma/enums";
-import { prisma } from "@/lib/prisma";
+import { scopeSql, scoped } from "@/lib/scope";
 import { compareSections } from "@/lib/sections";
 import type { Settings } from "@/lib/settings";
 import {
@@ -90,6 +90,7 @@ export function filtersToQuery(f: RecordFilters, overrides: Partial<RecordFilter
 
 /** Late arrivals per day of a month, as { "YYYY-MM-DD": count }. */
 export async function lateCountsForMonth(month: string) {
+  const prisma = await scoped();
   const rows = await prisma.lateRecord.groupBy({
     by: ["lateDate"],
     where: { lateDate: { gte: toDbDate(`${month}-01`), lt: toDbDate(nextMonthStart(`${month}-01`)) } },
@@ -174,6 +175,7 @@ export async function queryLedger(
   settings: Settings,
   opts: { limit?: number; offset?: number } = {},
 ): Promise<{ rows: LedgerRow[]; total: number; range: { from?: string; to?: string } }> {
+  const prisma = await scoped();
   const range = resolveRange(f, settings.timezone);
 
   // Strike numbers must count every record in the month, not just the
@@ -183,6 +185,10 @@ export async function queryLedger(
   if (range.to) scope.push(Prisma.sql`r.late_date <= ${range.to}::date`);
 
   const where: Prisma.Sql[] = [];
+  // Only the selected academic year and batch.
+  const sc = await scopeSql();
+  where.push(Prisma.sql`c.late_date >= ${sc.from} AND c.late_date <= ${sc.to}`);
+  if (sc.batchId) where.push(Prisma.sql`s.batch_id = ${sc.batchId}`);
   if (range.from) where.push(Prisma.sql`c.late_date >= ${range.from}::date`);
   if (range.to) where.push(Prisma.sql`c.late_date <= ${range.to}::date`);
   if (f.q) {
@@ -247,6 +253,7 @@ export async function queryLedger(
 
 /** Distinct programs and sections for filter dropdowns. */
 export async function getClassOptions() {
+  const prisma = await scoped();
   const rows = await prisma.student.findMany({
     distinct: ["program", "section"],
     select: { program: true, section: true },
